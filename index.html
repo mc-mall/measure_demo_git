@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MC 量体三端原型</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #17212f;
+        --muted: #64748b;
+        --line: #d8e0ea;
+        --page: #f1f5f9;
+        --panel: #ffffff;
+        --blue: #075ca8;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 32px 20px;
+        background: var(--page);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      main { width: min(920px, 100%); }
+      header { margin-bottom: 24px; }
+      .brand-mark {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 20px;
+        border-radius: 10px;
+        background: var(--blue);
+        color: #fff;
+        font-weight: 900;
+      }
+      h1 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 40px); }
+      header p { margin: 0; color: var(--muted); line-height: 1.7; }
+      .entry-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      a {
+        min-height: 190px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+        color: inherit;
+        text-decoration: none;
+        box-shadow: 0 12px 32px rgba(23, 33, 47, 0.06);
+        transition: transform 160ms ease, box-shadow 160ms ease;
+      }
+      a:hover { transform: translateY(-3px); box-shadow: 0 18px 38px rgba(23, 33, 47, 0.1); }
+      a span { color: var(--blue); font-size: 13px; font-weight: 800; letter-spacing: 0.08em; }
+      a strong { display: block; margin: 10px 0 8px; font-size: 22px; }
+      a p { margin: 0; color: var(--muted); line-height: 1.6; }
+      a em { color: var(--blue); font-style: normal; font-weight: 800; }
+      @media (max-width: 720px) { .entry-grid { grid-template-columns: 1fr; } a { min-height: 156px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="brand-mark">MC</div>
+        <h1>量体三端交互原型</h1>
+        <p>选择入口预览管理后台、裁缝量体端或集团员工客户端。</p>
+      </header>
+      <section class="entry-grid" aria-label="原型入口">
+        <a href="./measure_admin/">
+          <div><span>PC ADMIN</span><strong>管理后台</strong><p>维护裁缝师、订单、员工及量体档案。</p></div>
+          <em>进入后台 →</em>
+        </a>
+        <a href="./tailor/">
+          <div><span>TAILOR H5</span><strong>裁缝端</strong><p>查询员工并完成男女量体数据录入。</p></div>
+          <em>开始量体 →</em>
+        </a>
+        <a href="./client/">
+          <div><span>CLIENT H5</span><strong>客户端</strong><p>确认个人资料、服装需求和电子签名。</p></div>
+          <em>开始确认 →</em>
+        </a>
+      </section>
+    </main>
+  </body>
+</html>

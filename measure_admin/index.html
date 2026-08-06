@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-HK">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MC 量體管理後台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <section class="login-view" id="login-view">
+      <form class="login-card" id="login-form">
+        <div class="brand-mark">MC</div>
+        <h1>量體管理後台</h1>
+        <label>
+          <span>管理員賬號</span>
+          <input name="username" autocomplete="username" required />
+        </label>
+        <label>
+          <span>密碼</span>
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit">登入後台</button>
+        <p class="login-hint">原型模式：輸入任意非空賬號及密碼即可進入，資料僅保存在當前瀏覽器。</p>
+        <p id="login-error" hidden></p>
+      </form>
+    </section>
+
+    <main class="admin-shell" id="admin-shell" hidden>
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">MC</div>
+          <div>
+            <strong>量體管理後台</strong>
+            <span>PC Admin</span>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="is-active" type="button" data-view="dashboard">總覽</button>
+          <button type="button" data-view="tailors">裁縫師管理</button>
+          <button type="button" data-view="orders">訂單管理</button>
+          <button type="button" data-view="employees">員工管理</button>
+          <button type="button" data-view="records-male">男士量體記錄</button>
+          <button type="button" data-view="records-female">女士量體記錄</button>
+        </nav>
+        <button class="ghost" type="button" id="logout">退出登入</button>
+      </aside>
+
+      <section class="content">
+        <header class="topbar">
+          <div>
+            <p>MC SPORTSWEAR &amp; UNIFORM</p>
+            <h2 id="view-title">總覽</h2>
+          </div>
+        </header>
+
+        <section class="view is-active" id="view-dashboard">
+          <div class="metric-grid">
+            <article><span>裁縫師</span><strong id="metric-tailors">0</strong></article>
+            <article><span>訂單</span><strong id="metric-orders">0</strong></article>
+            <article><span>員工</span><strong id="metric-employees">0</strong></article>
+            <article><span>量體記錄</span><strong id="metric-records">0</strong></article>
+          </div>
+          <div class="panel">
+            <h3>流程</h3>
+            <p>後台可錄入裁縫師、訂單與員工資料，並按男士與女士查看、篩選和導出量體記錄。本版本為獨立交互原型，資料僅保存在當前瀏覽器。</p>
+          </div>
+        </section>
+
+        <section class="view" id="view-tailors">
+          <div class="panel list-toolbar"><div><h3>裁縫師列表</h3><p>管理裁縫師姓名及登入資料。</p></div><button type="button" data-open-editor="tailor">新增裁縫師</button></div>
+          <div class="panel table-wrap"><table id="tailor-table"></table></div>
+        </section>
+
+        <section class="view" id="view-orders">
+          <div class="panel list-toolbar"><div><h3>訂單列表</h3><p>管理訂單號及對應公司。</p></div><button type="button" data-open-editor="order">新增訂單</button></div>
+          <div class="panel table-wrap"><table id="order-table"></table></div>
+        </section>
+
+        <section class="view" id="view-employees">
+          <div class="panel employee-import-actions list-toolbar">
+            <div>
+              <h3>員工列表</h3>
+              <p>新增、編輯員工，或批量導入員工及量體檔案。</p>
+            </div>
+            <div class="row-actions">
+              <button type="button" data-open-editor="employee">新增員工</button>
+              <button type="button" id="open-comparison-analysis">對比分析</button>
+              <button type="button" data-open-import="employees">導入員工信息</button>
+              <button class="secondary" type="button" data-open-import="measurements">導入量體檔案</button>
+              <button class="secondary" type="button" id="export-measurement-template">導出量體檔案模板</button>
+            </div>
+          </div>
+          <div class="panel employee-filters">
+            <label><span>員工編號</span><input id="employee-filter-id" type="search" placeholder="搜尋員工編號" /></label>
+            <label><span>姓名</span><input id="employee-filter-name" type="search" placeholder="搜尋姓名" /></label>
+            <label><span>歸屬訂單</span><select id="employee-filter-order"><option value="">全部訂單</option></select></label>
+            <button class="secondary" type="button" id="clear-employee-filters">清除篩選</button>
+          </div>
+          <div class="panel table-wrap"><table id="employee-table"></table></div>
+          <div class="panel pagination" id="employee-pagination"></div>
+        </section>
+
+        <section class="view" id="view-records-male">
+          <div class="panel table-head record-toolbar" data-record-export-panel>
+            <h3>男士量體記錄</h3>
+            <div class="export-controls" aria-label="男士量體記錄導出篩選">
+              <label><span>姓名</span><input class="record-name-search" type="search" placeholder="搜尋姓名" /></label>
+              <label><span>員工編號</span><input class="record-employee-search" type="search" placeholder="搜尋員工編號" /></label>
+              <label><span>訂單</span><select class="export-order-select"><option value="">全部訂單</option></select></label>
+              <label><span>開始</span><input class="export-start-date" type="date" /></label>
+              <label><span>結束</span><input class="export-end-date" type="date" /></label>
+              <button type="button" data-export-records="男">導出 CSV</button>
+              <button class="secondary" type="button" data-clear-export-filters>清除</button>
+            </div>
+          </div>
+          <div class="panel table-wrap"><table id="male-record-table"></table></div>
+          <div class="panel pagination" data-record-pagination="男"></div>
+        </section>
+
+        <section class="view" id="view-records-female">
+          <div class="panel table-head record-toolbar" data-record-export-panel>
+            <h3>女士量體記錄</h3>
+            <div class="export-controls" aria-label="女士量體記錄導出篩選">
+              <label><span>姓名</span><input class="record-name-search" type="search" placeholder="搜尋姓名" /></label>
+              <label><span>員工編號</span><input class="record-employee-search" type="search" placeholder="搜尋員工編號" /></label>
+              <label><span>訂單</span><select class="export-order-select"><option value="">全部訂單</option></select></label>
+              <label><span>開始</span><input class="export-start-date" type="date" /></label>
+              <label><span>結束</span><input class="export-end-date" type="date" /></label>
+              <button type="button" data-export-records="女">導出 CSV</button>
+              <button class="secondary" type="button" data-clear-export-filters>清除</button>
+            </div>
+          </div>
+          <div class="panel table-wrap"><table id="female-record-table"></table></div>
+          <div class="panel pagination" data-record-pagination="女"></div>
+        </section>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" hidden></div>
+    <dialog class="archive-dialog" id="archive-dialog">
+      <div class="dialog-head"><div><h3 id="archive-title">員工量體檔案</h3><p id="archive-subtitle"></p></div><button class="secondary" type="button" data-close-archive>關閉</button></div>
+      <div class="table-wrap"><table id="archive-table"></table></div>
+    </dialog>
+    <dialog class="entity-dialog" id="tailor-dialog">
+      <form id="tailor-form">
+        <div class="dialog-head"><div><h3 id="tailor-dialog-title">新增裁縫師</h3><p>填寫裁縫師登入資料。</p></div><button class="secondary" type="button" data-close-entity>取消</button></div>
+        <input type="hidden" name="id" />
+        <div class="dialog-form-grid">
+          <label><span>裁縫師姓名</span><input name="name" required /></label>
+          <label><span>登入賬號</span><input name="username" required /></label>
+          <label><span>登入密碼</span><input name="password" type="password" autocomplete="new-password" /><small>新增時必填；編輯時留空代表保持已設置狀態。原型不保存明文密碼。</small></label>
+        </div>
+        <div class="dialog-actions"><button type="submit">保存裁縫師</button></div>
+      </form>
+    </dialog>
+    <dialog class="entity-dialog" id="order-dialog">
+      <form id="order-form">
+        <div class="dialog-head"><div><h3 id="order-dialog-title">新增訂單</h3><p>填寫訂單號及公司名稱。</p></div><button class="secondary" type="button" data-close-entity>取消</button></div>
+        <input type="hidden" name="id" />
+        <div class="dialog-form-grid">
+          <label><span>訂單號</span><input name="order_id" required /></label>
+          <label><span>公司名</span><input name="company_name" required /></label>
+        </div>
+        <div class="dialog-actions"><button type="submit">保存訂單</button></div>
+      </form>
+    </dialog>
+    <dialog class="entity-dialog" id="employee-dialog">
+      <form id="employee-form">
+        <div class="dialog-head"><div><h3 id="employee-dialog-title">新增員工</h3><p>填寫員工基本資料及歸屬訂單。</p></div><button class="secondary" type="button" data-close-entity>取消</button></div>
+        <input type="hidden" name="id" />
+        <div class="dialog-form-grid employee-dialog-grid">
+          <label><span>員工編號</span><input name="employee_id" required /></label>
+          <label><span>姓名</span><input name="name" required /></label>
+          <label><span>性別</span><select name="gender" required><option>男</option><option>女</option></select></label>
+          <label><span>身高 cm</span><input name="height_cm" type="number" step="0.1" min="0" /></label>
+          <label><span>體重 kg</span><input name="weight_kg" type="number" step="0.1" min="0" /></label>
+          <label><span>單位名字</span><input name="unit_name" required /></label>
+          <label><span>歸屬訂單 / 公司</span><select name="order_id" id="employee-order-select" required></select></label>
+        </div>
+        <div class="dialog-actions"><button type="submit">保存員工</button></div>
+      </form>
+    </dialog>
+    <dialog class="import-dialog" id="employee-import-dialog">
+      <div class="dialog-head"><div><h3>導入員工信息</h3><p>選擇歸屬訂單並上傳 CSV、TSV 或 XLSX 文件。</p></div><button class="secondary" type="button" data-close-import>取消</button></div>
+      <div class="dialog-form-grid">
+        <label><span>歸屬訂單 / 公司</span><select id="import-order-select" required></select></label>
+        <label class="file-field"><span>員工文件</span><input id="employee-import-file" type="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values" /></label>
+      </div>
+      <p class="dialog-tip">必填表頭：員工編號、姓名、性別、單位名字；可選：身高、體重。</p>
+      <div class="dialog-actions"><button type="button" id="import-employees">確認導入</button></div>
+    </dialog>
+    <dialog class="import-dialog" id="measurement-import-dialog">
+      <div class="dialog-head"><div><h3>導入量體檔案</h3><p>上傳文件後確認導入，系統將為匹配員工生成新的量體版本。</p></div><button class="secondary" type="button" data-close-import>取消</button></div>
+      <div class="dialog-form-grid">
+        <label class="file-field"><span>量體記錄文件</span><input id="measurement-import-file" type="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values" /></label>
+      </div>
+      <p class="dialog-tip">支持 CSV、TSV、XLSX。必填：訂單號、員工編號；量體字段可使用導出表頭或字段代碼。</p>
+      <div class="dialog-actions"><button type="button" id="import-measurements">確認導入</button></div>
+    </dialog>
+    <dialog class="record-edit-dialog" id="record-edit-dialog">
+      <form id="record-edit-form">
+        <div class="dialog-head"><div><h3>修改量體版本</h3><p id="record-edit-subtitle"></p></div><button class="secondary" type="button" data-close-record-edit>取消</button></div>
+        <input type="hidden" name="measurement_id" />
+        <div class="measurement-form-grid" id="record-measurement-fields"></div>
+        <label><span>備註</span><textarea name="remark" rows="3"></textarea></label>
+        <div class="dialog-actions"><button type="submit">保存修改</button></div>
+      </form>
+    </dialog>
+    <dialog class="comparison-dialog" id="comparison-dialog">
+      <div class="dialog-head"><div><h3>量體對比分析</h3><p>按版本、服裝類型和字段差異條件查找需要調整的員工。</p></div><button class="secondary" type="button" data-close-comparison>關閉</button></div>
+      <ol class="analysis-steps" aria-label="分析步驟">
+        <li class="is-active" data-analysis-step-indicator="1">1. 比較版本</li>
+        <li data-analysis-step-indicator="2">2. 服裝類型</li>
+        <li data-analysis-step-indicator="3">3. 差異條件</li>
+        <li data-analysis-step-indicator="4">4. 確認執行</li>
+      </ol>
+      <section class="analysis-step is-active" data-analysis-step="1">
+        <h4>選擇要比較的兩個版本</h4>
+        <div class="analysis-option-grid">
+          <label class="choice-card"><input type="radio" name="comparison_mode" value="v1_v2" checked /><span><strong>V1.0 vs V2.0</strong>原始量體與工廠返回</span></label>
+          <label class="choice-card"><input type="radio" name="comparison_mode" value="v2_v3" /><span><strong>V2.0 vs V3.0</strong>工廠返回與最終版</span></label>
+          <label class="choice-card"><input type="radio" name="comparison_mode" value="previous_latest" /><span><strong>上一版 vs 最新版</strong>按每位員工的實際版本比較</span></label>
+          <label class="choice-card"><input type="radio" name="comparison_mode" value="custom" /><span><strong>自定義版本</strong>手動選擇基準版和目標版</span></label>
+        </div>
+        <div class="analysis-custom-versions" id="analysis-custom-versions" hidden>
+          <label><span>基準版本</span><select id="analysis-version-from"><option value="1">V1.0</option><option value="2">V2.0</option><option value="3">V3.0</option></select></label>
+          <label><span>目標版本</span><select id="analysis-version-to"><option value="2">V2.0</option><option value="3">V3.0</option><option value="1">V1.0</option></select></label>
+        </div>
+      </section>
+      <section class="analysis-step" data-analysis-step="2">
+        <h4>選擇服裝類型（可多選）</h4>
+        <div class="analysis-option-grid">
+          <label class="choice-card"><input type="checkbox" name="analysis_garment" value="suit" /><span><strong>上衣</strong>領圍、胸圍、肩寬、袖長等</span></label>
+          <label class="choice-card"><input type="checkbox" name="analysis_garment" value="pants" /><span><strong>褲子</strong>腰圍、臀圍、褲長、總浪等</span></label>
+          <label class="choice-card"><input type="checkbox" name="analysis_garment" value="skirt" /><span><strong>一步裙</strong>一步裙裙長</span></label>
+          <label class="choice-card"><input type="checkbox" name="analysis_garment" value="dress" /><span><strong>連衣裙</strong>連衣裙前長</span></label>
+        </div>
+      </section>
+      <section class="analysis-step" data-analysis-step="3">
+        <div class="analysis-condition-head"><div><h4>設置字段差異條件</h4><p>勾選需要分析的字段；最大差異可留空，表示不設上限。</p></div><label><span>多條件匹配</span><select id="analysis-match-mode"><option value="any">任一條件滿足</option><option value="all">全部條件滿足</option></select></label></div>
+        <div class="analysis-condition-list" id="analysis-condition-list"></div>
+      </section>
+      <section class="analysis-step" data-analysis-step="4">
+        <h4>確認分析條件</h4>
+        <div class="analysis-summary" id="analysis-summary"></div>
+        <p class="dialog-tip">空值或非數字不会按 0 計算；已從員工檔案移除的版本不參與分析。</p>
+      </section>
+      <p class="analysis-error" id="analysis-error" hidden></p>
+      <div class="dialog-actions analysis-actions"><button class="secondary" type="button" id="analysis-prev" hidden>上一步</button><button type="button" id="analysis-next">下一步</button><button type="button" id="analysis-run" hidden>執行分析</button></div>
+    </dialog>
+    <dialog class="analysis-results-dialog" id="analysis-results-dialog">
+      <div class="dialog-head"><div><h3>量體對比分析結果</h3><p id="analysis-result-description"></p></div><button class="secondary" type="button" data-close-analysis-results>關閉</button></div>
+      <div class="analysis-metrics" id="analysis-metrics"></div>
+      <div class="analysis-result-toolbar"><label><span>搜尋員工</span><input id="analysis-result-search" type="search" placeholder="員工編號或姓名" /></label><button class="secondary" type="button" id="export-analysis-results">導出分析結果</button></div>
+      <div class="table-wrap"><table id="analysis-result-table"></table></div>
+    </dialog>
+    <script src="./app.js"></script>
+  </body>
+</html>

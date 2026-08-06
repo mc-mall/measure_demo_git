@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="zh-HK">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>MC 客戶端 H5 服裝需求確認 Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div class="brand">
+          <div class="brand-mark">MC</div>
+          <div>
+            <p class="brand-name">MC SPORTSWEAR &amp; UNIFORM</p>
+            <p class="brand-subtitle">集團員工服裝需求確認工具</p>
+          </div>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Demo views">
+        <button class="tab is-active" type="button" data-view="login">登入</button>
+        <button class="tab" type="button" data-view="flow">確認流程</button>
+        <button class="tab" type="button" data-view="locked">已確認</button>
+        <button class="tab" type="button" data-view="reset">重置密碼</button>
+      </nav>
+
+      <section class="view is-active" id="view-login" aria-labelledby="login-title">
+        <div class="section-head">
+          <p class="section-kicker">Login</p>
+          <h1 id="login-title">員工登入</h1>
+          <p>賬號由後台導入生成，不支持員工自主註冊。</p>
+        </div>
+
+        <form class="form" id="login-form">
+          <label class="field">
+            <span>訂單 / 項目</span>
+            <select name="order_id" required>
+              <option value="ORDER001">ORDER001 - 澳設集團 2026 夏季制服</option>
+              <option value="ORDER002">ORDER002 - 澳門分部補單</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>員工 ID</span>
+            <input name="employee_id" autocomplete="username" required />
+          </label>
+
+          <label class="field">
+            <span>密碼</span>
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+
+          <div class="hint-row">
+            <span>原型模式：輸入任意非空密碼</span>
+            <button class="link-button" type="button" data-jump="reset">忘記密碼</button>
+          </div>
+
+          <button class="primary-action" type="submit">登入並開始確認</button>
+        </form>
+
+        <div class="notice" id="login-result" hidden></div>
+      </section>
+
+      <section class="view" id="view-flow" aria-labelledby="flow-title">
+        <div class="section-head">
+          <p class="section-kicker">Confirmation Flow</p>
+          <h1 id="flow-title">服裝需求確認</h1>
+          <p>補充個人資料、選擇 SKU 數量，並完成電子簽名。</p>
+        </div>
+
+        <ol class="stepper flow-stepper" aria-label="Confirmation steps">
+          <li class="is-current" data-step-dot="1">個人資料</li>
+          <li data-step-dot="2">SKU 選擇</li>
+          <li data-step-dot="3">確認內容</li>
+          <li data-step-dot="4">電子簽字</li>
+          <li data-step-dot="5">完成</li>
+        </ol>
+
+        <form class="form" id="confirm-form">
+          <section class="flow-page is-active" data-flow-page="0">
+            <div class="readonly-grid">
+              <div><span>員工 ID</span><strong id="employee-id-text">EMP001</strong></div>
+              <div><span>姓名</span><strong id="employee-name-text">陳嘉儀</strong></div>
+              <div><span>性別</span><strong id="employee-gender-text">女</strong></div>
+              <div><span>歸屬分部</span><strong id="department-text">深圳總部</strong></div>
+            </div>
+
+            <div class="info-measure-fields">
+              <label class="field">
+                <span>身高 cm</span>
+                <input name="height_cm" inputmode="numeric" value="168" />
+              </label>
+
+              <label class="field">
+                <span>體重 kg</span>
+                <input name="weight_kg" inputmode="decimal" value="55.5" />
+              </label>
+            </div>
+
+            <label class="field">
+              <span>聯絡電話</span>
+              <input name="phone" inputmode="tel" value="+8613812345678" />
+            </label>
+
+            <label class="field">
+              <span>電子郵箱</span>
+              <input name="email" inputmode="email" value="jiayi.chen@example.com" />
+            </label>
+
+            <label class="field pregnancy-field">
+              <span>是否懷孕</span>
+              <select name="is_pregnant">
+                <option value="no">否</option>
+                <option value="yes">是</option>
+              </select>
+            </label>
+
+            <div class="notice info" id="pregnant-tip" hidden>
+              <span>請留下聯絡電話，我們會短訊或電話通知溝通孕婦裝製作事宜 。歡迎查詢：2855 0201 澳設-陳小姐<br />辦公時間：星期一至五 10-19:00；星期六日12-18:00 （公眾假期休息）</span>
+            </div>
+
+            <button class="primary-action" type="button" id="save-info">下一步</button>
+          </section>
+
+          <section class="flow-page" data-flow-page="1">
+            <div class="sku-summary">
+              <div><span>已選總數</span><strong id="sku-total">0 / 4</strong></div>
+              <p>所有 SKU 數量總和必須等於 4 件。</p>
+            </div>
+
+            <div class="sku-list" aria-label="SKU 選擇">
+              <label class="sku-row">
+                <input type="checkbox" name="sku" value="shirt" data-name="襯衫" data-type="上身" />
+                <span><strong>襯衫</strong><em>上身</em></span>
+                <input class="sku-qty" type="number" min="1" max="4" inputmode="numeric" placeholder="數量" disabled />
+              </label>
+
+              <label class="sku-row">
+                <input type="checkbox" name="sku" value="jacket" data-name="西裝外套" data-type="上身" />
+                <span><strong>西裝外套</strong><em>上身</em></span>
+                <input class="sku-qty" type="number" min="1" max="4" inputmode="numeric" placeholder="數量" disabled />
+              </label>
+
+              <label class="sku-row">
+                <input type="checkbox" name="sku" value="trousers" data-name="西褲" data-type="下身" />
+                <span><strong>西褲</strong><em>下身</em></span>
+                <input class="sku-qty" type="number" min="1" max="4" inputmode="numeric" placeholder="數量" disabled />
+              </label>
+
+              <label class="sku-row">
+                <input type="checkbox" name="sku" value="skirt" data-name="半裙" data-type="下身" />
+                <span><strong>半裙</strong><em>下身</em></span>
+                <input class="sku-qty" type="number" min="1" max="4" inputmode="numeric" placeholder="數量" disabled />
+              </label>
+
+              <label class="sku-row">
+                <input type="checkbox" name="sku" value="vest" data-name="馬甲" data-type="其他" />
+                <span><strong>馬甲</strong><em>其他</em></span>
+                <input class="sku-qty" type="number" min="1" max="4" inputmode="numeric" placeholder="數量" disabled />
+              </label>
+            </div>
+
+            <div class="button-row">
+              <button class="secondary-action" type="button" data-flow-back>返回</button>
+              <button class="primary-action" type="button" id="save-sku">下一步</button>
+            </div>
+          </section>
+
+          <section class="flow-page" data-flow-page="2">
+            <div class="confirm-card" id="confirm-summary"></div>
+
+            <div class="notice info">
+              <span>請確認以上服裝品類及數量無誤。簽字確認後，系統將記錄確認結果，您將無法自行修改。</span>
+            </div>
+
+            <div class="button-row">
+              <button class="secondary-action" type="button" data-flow-back>返回修改</button>
+              <button class="primary-action" type="button" id="go-signature">確認並簽字</button>
+            </div>
+          </section>
+
+          <section class="flow-page" data-flow-page="3">
+            <div class="signature-tip">請使用正楷書寫簽名</div>
+            <div class="signature-box">
+              <canvas id="signature-pad" width="420" height="180" aria-label="手寫簽名區域"></canvas>
+            </div>
+            <div class="button-row">
+              <button class="secondary-action" type="button" id="back-confirm">返回確認</button>
+              <button class="secondary-action" type="button" id="clear-signature">清除簽名</button>
+              <button class="primary-action" type="button" id="submit-signature">提交確認</button>
+            </div>
+          </section>
+
+          <section class="flow-page" data-flow-page="4">
+            <div class="success-state">
+              <strong>您已完成服裝需求確認</strong>
+              <span>確認後如需修改，請聯絡我司工作人員。</span>
+            </div>
+            <div class="locked-preview" id="completed-summary"></div>
+            <button class="primary-action" type="button" data-jump="locked">查看鎖定結果</button>
+          </section>
+        </form>
+
+        <div class="notice" id="flow-result" hidden></div>
+      </section>
+
+      <section class="view" id="view-locked" aria-labelledby="locked-title">
+        <div class="section-head">
+          <p class="section-kicker">Confirmed</p>
+          <h1 id="locked-title">已確認結果</h1>
+          <p>再次登入後僅可查看確認結果，不顯示編輯入口。</p>
+        </div>
+
+        <div class="locked-preview" id="locked-summary">
+          <div class="empty-state">
+            <strong>暫無已確認記錄</strong>
+            <span>請先完成服裝需求確認流程。</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-reset" aria-labelledby="reset-title">
+        <div class="section-head">
+          <p class="section-kicker">Reset Password</p>
+          <h1 id="reset-title">忘記密碼 / 修改初始密碼</h1>
+          <p>保留 1.0 重置密碼模組，通過訂單和員工檔案手機號完成驗證。</p>
+        </div>
+
+        <ol class="stepper reset-stepper" aria-label="Password reset steps">
+          <li class="is-current" data-step-dot="1">校驗員工</li>
+          <li data-step-dot="2">設定新密碼</li>
+          <li data-step-dot="3">重置成功</li>
+        </ol>
+
+        <form class="form" id="reset-form">
+          <div class="reset-page is-active" data-reset-page="0">
+            <label class="field">
+              <span>訂單 / 項目</span>
+              <select name="reset_order_id" required>
+                <option value="ORDER001">ORDER001 - 澳設集團 2026 夏季制服</option>
+                <option value="ORDER002">ORDER002 - 澳門分部補單</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>員工 ID</span>
+              <input name="reset_employee_id" required />
+            </label>
+
+            <button class="primary-action" type="button" id="check-employee">校驗員工賬號</button>
+          </div>
+
+          <div class="reset-page" data-reset-page="1">
+            <div class="masked-phone" id="masked-phone">
+              <span>檔案手機號</span>
+              <strong>+86 **** **** 5678</strong>
+            </div>
+
+            <button class="secondary-action" type="button" id="send-code">獲取驗證碼</button>
+
+            <label class="field">
+              <span>驗證碼</span>
+              <input name="verify_code" inputmode="numeric" maxlength="6" placeholder="輸入任意 6 位數字" />
+            </label>
+
+            <label class="field">
+              <span>新密碼</span>
+              <input name="new_password" type="password" placeholder="6-20 位" />
+            </label>
+
+            <label class="field">
+              <span>確認新密碼</span>
+              <input name="confirm_password" type="password" placeholder="再次輸入新密碼" />
+            </label>
+
+            <button class="primary-action" type="submit">確認修改密碼</button>
+          </div>
+
+          <div class="reset-page" data-reset-page="2">
+            <div class="success-state">
+              <strong>密碼重置成功</strong>
+              <span>請使用新密碼重新登入。</span>
+            </div>
+            <button class="primary-action" type="button" id="back-login">返回登入</button>
+          </div>
+        </form>
+
+        <div class="notice" id="reset-result" hidden></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

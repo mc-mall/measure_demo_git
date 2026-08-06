@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-HK">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>MC 量體資料收集</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div class="brand">
+          <div class="brand-mark">MC</div>
+          <div>
+            <p class="brand-name">MC SPORTSWEAR &amp; UNIFORM</p>
+            <h1>量體資料收集</h1>
+          </div>
+        </div>
+        <div class="session-chip" id="session-chip">未登入</div>
+      </header>
+
+      <ol class="stepper" id="stepper" aria-label="量體步驟">
+        <li class="is-current">登入</li>
+        <li>基本資料</li>
+        <li>特殊體型</li>
+        <li>西裝</li>
+        <li>褲子</li>
+        <li>襯衫</li>
+        <li>一步裙</li>
+        <li>其它產品</li>
+        <li>確認提交</li>
+        <li>完成</li>
+      </ol>
+
+      <section class="page is-active" data-page="0">
+        <div class="section-head">
+          <p>Tailor Login</p>
+          <h2>裁縫師登入</h2>
+        </div>
+
+        <form class="form" id="login-form">
+          <label class="field">
+            <span>API Base URL</span>
+            <input name="api_base" value="" placeholder="留空使用本機演示資料；例：https://example.com/api" />
+          </label>
+          <div class="field-grid">
+            <label class="field">
+              <span>裁縫師賬號</span>
+              <input name="username" autocomplete="username" required />
+            </label>
+            <label class="field">
+              <span>密碼</span>
+              <input name="password" type="password" autocomplete="current-password" required />
+            </label>
+          </div>
+          <button class="primary-action" type="submit">登入</button>
+          <p class="measure-hint">原型模式下请使用后台已有的裁缝师账号；密码仅用于演示输入，不会保存或校验明文。</p>
+        </form>
+      </section>
+
+      <section class="page" data-page="1">
+        <div class="section-head">
+          <p>Employee Lookup</p>
+          <h2>員工基本資料</h2>
+        </div>
+
+        <form class="form" id="employee-form">
+          <div class="field-grid">
+            <label class="field">
+              <span>訂單 / 項目 ID</span>
+              <select name="order_id" id="order-select" required>
+                <option value="">請先登入後選擇訂單</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>員工編號</span>
+              <input name="employee_id" required />
+            </label>
+          </div>
+          <button class="secondary-action" type="submit">查詢員工</button>
+        </form>
+
+        <article class="employee-card" id="employee-card" hidden></article>
+
+        <div class="button-row">
+          <button class="secondary-action" type="button" data-prev>返回</button>
+          <button class="primary-action" type="button" id="confirm-employee" disabled>確認並開始量體</button>
+        </div>
+      </section>
+
+      <form id="measure-form">
+        <section class="page" data-page="2" data-garment="suit">
+          <div class="section-head">
+            <p>Step 2</p>
+            <h2>上衣套碼</h2>
+          </div>
+          <p class="measure-hint" id="suit-hint"></p>
+          <div class="field-list" id="suit-fields"></div>
+          <div class="button-row">
+            <button class="secondary-action" type="button" data-prev>返回</button>
+            <button class="primary-action" type="button" data-next>下一步</button>
+          </div>
+        </section>
+
+        <section class="page" data-page="3" data-garment="pants">
+          <div class="section-head">
+            <p>Step 3</p>
+            <h2>褲子量體</h2>
+          </div>
+          <p class="measure-hint" id="pants-hint"></p>
+          <div class="field-list" id="pants-fields"></div>
+          <div class="button-row">
+            <button class="secondary-action" type="button" data-prev>返回</button>
+            <button class="primary-action" type="button" data-next>下一步</button>
+          </div>
+        </section>
+
+        <section class="page" data-page="4" data-garment="shirt">
+          <div class="section-head">
+            <p>Step 4</p>
+            <h2>襯衫量體</h2>
+          </div>
+          <p class="measure-hint" id="shirt-hint"></p>
+          <div class="field-list" id="shirt-fields"></div>
+          <div class="button-row">
+            <button class="secondary-action" type="button" data-prev>返回</button>
+            <button class="primary-action" type="button" data-next>下一步</button>
+          </div>
+        </section>
+
+        <section class="page" data-page="5" data-garment="skirt">
+          <div class="section-head">
+            <p>Step 4</p>
+            <h2>一步裙量體</h2>
+          </div>
+          <p class="measure-hint" id="skirt-hint"></p>
+          <div class="field-list" id="skirt-fields"></div>
+          <div class="button-row">
+            <button class="secondary-action" type="button" data-prev>返回</button>
+            <button class="primary-action" type="button" data-next>下一步</button>
+          </div>
+        </section>
+
+        <section class="page" data-page="6" data-garment="dress">
+          <div class="section-head">
+            <p>Step 5</p>
+            <h2>連衣裙量體</h2>
+          </div>
+          <p class="measure-hint" id="dress-hint"></p>
+          <div class="field-list" id="dress-fields"></div>
+          <div class="button-row">
+            <button class="secondary-action" type="button" data-prev>返回</button>
+            <button class="primary-action" type="button" data-next>下一步</button>
+          </div>
+        </section>
+
+        <section class="page" data-page="7">
+          <div class="section-head">
+            <p>Step 1</p>
+            <h2>特殊體型</h2>
+          </div>
+
+          <fieldset class="check-group">
+            <legend>特殊體型（可多選或不選）</legend>
+            <label><input type="checkbox" name="body_notes" value="平肩" /> 平肩</label>
+            <label><input type="checkbox" name="body_notes" value="溜肩" /> 溜肩</label>
+            <label><input type="checkbox" name="body_notes" value="凸腹" /> 凸腹</label>
+            <label><input type="checkbox" name="body_notes" value="大背骨" /> 大背骨</label>
+            <label><input type="checkbox" name="body_notes" value="駝背" /> 駝背</label>
+            <label><input type="checkbox" name="body_notes" value="挺胸" /> 挺胸</label>
+            <label><input type="checkbox" name="body_notes" value="健身" /> 健身</label>
+            <label><input type="checkbox" name="body_notes" value="翹臀" /> 翹臀</label>
+            <label><input type="checkbox" name="body_notes" value="平臀" /> 平臀</label>
+            <label><input type="checkbox" name="body_notes" value="落臀" /> 落臀</label>
+          </fieldset>
+
+          <div class="button-row">
+            <button class="secondary-action" type="button" data-prev>返回</button>
+            <button class="primary-action" type="button" data-next>下一步</button>
+          </div>
+        </section>
+
+        <section class="page" data-page="10" data-garment="other">
+          <div class="section-head">
+            <p>Other Products</p>
+            <h2>其它產品</h2>
+          </div>
+          <p class="measure-hint" id="other-hint"></p>
+          <div class="field-list" id="other-fields"></div>
+          <div class="button-row">
+            <button class="secondary-action" type="button" data-prev>返回</button>
+            <button class="primary-action" type="button" data-next>下一步</button>
+          </div>
+        </section>
+
+        <section class="page" data-page="9">
+          <div class="section-head">
+            <p>Final Check</p>
+            <h2>確認提交</h2>
+          </div>
+
+          <article class="summary-card" id="summary-card"></article>
+
+          <label class="field final-remark-field">
+            <span>其它備註</span>
+            <input name="remark" autocomplete="off" />
+          </label>
+
+          <div class="notice warning">
+            提交後本次量體記錄將鎖定，不可在頁面內修改；同一員工如需再次量體，請重新查詢並建立新記錄。
+          </div>
+
+          <div class="button-row">
+            <button class="secondary-action" type="button" data-prev>返回</button>
+            <button class="primary-action" type="button" id="submit-measure">提交量體資料</button>
+          </div>
+        </section>
+      </form>
+
+      <section class="page" data-page="8">
+        <div class="success-state">
+          <strong>量體資料已提交</strong>
+          <span id="locked-message">本次記錄已鎖定。</span>
+        </div>
+        <article class="summary-card" id="locked-summary"></article>
+        <button class="primary-action" type="button" id="new-record">錄入下一筆</button>
+      </section>
+
+      <div class="toast" id="toast" hidden></div>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
