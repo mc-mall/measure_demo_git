@@ -72,8 +72,23 @@
         </section>
 
         <section class="view" id="view-orders">
-          <div class="panel list-toolbar"><div><h3>訂單列表</h3><p>管理訂單號及對應公司。</p></div><button type="button" data-open-editor="order">新增訂單</button></div>
+          <div class="panel list-toolbar"><div><h3>訂單列表</h3><p>管理訂單基本資料，以及客戶端可選的男士、女士服裝類型與數量規則。</p></div><button type="button" data-open-editor="order">新增訂單</button></div>
           <div class="panel table-wrap"><table id="order-table"></table></div>
+        </section>
+
+        <section class="view" id="view-signatures">
+          <div class="panel signature-detail-head">
+            <button class="secondary" type="button" id="back-to-orders">返回訂單列表</button>
+            <div><h3>簽字明細</h3><p id="signature-order-subtitle">-</p></div>
+            <button type="button" id="export-signatures">導出明細</button>
+          </div>
+          <div class="panel signature-filters">
+            <label><span>客戶姓名</span><input id="signature-filter-name" type="search" placeholder="搜尋客戶姓名" /></label>
+            <label><span>員工編號</span><input id="signature-filter-employee" type="search" placeholder="搜尋員工編號" /></label>
+            <button class="secondary" type="button" id="clear-signature-filters">清除篩選</button>
+          </div>
+          <div class="panel table-wrap"><table id="signature-table"></table></div>
+          <div class="panel pagination" id="signature-pagination"></div>
         </section>
 
         <section class="view" id="view-employees">
@@ -153,15 +168,56 @@
         <div class="dialog-actions"><button type="submit">保存裁縫師</button></div>
       </form>
     </dialog>
-    <dialog class="entity-dialog" id="order-dialog">
+    <dialog class="entity-dialog order-dialog" id="order-dialog">
       <form id="order-form">
-        <div class="dialog-head"><div><h3 id="order-dialog-title">新增訂單</h3><p>填寫訂單號及公司名稱。</p></div><button class="secondary" type="button" data-close-entity>取消</button></div>
+        <div class="dialog-head"><div><h3 id="order-dialog-title">新增訂單</h3><p>配置訂單基本資料及客戶端可選服裝。</p></div><button class="secondary" type="button" data-close-entity>取消</button></div>
         <input type="hidden" name="id" />
-        <div class="dialog-form-grid">
-          <label><span>訂單號</span><input name="order_id" required /></label>
-          <label><span>公司名</span><input name="company_name" required /></label>
+        <ol class="order-steps" aria-label="訂單配置步驟">
+          <li class="is-active" data-order-step-indicator="1"><strong>1</strong><span>基本資料與服裝類型</span></li>
+          <li data-order-step-indicator="2"><strong>2</strong><span>默認數量與修改權限</span></li>
+          <li data-order-step-indicator="3"><strong>3</strong><span>組合數量限制（可選）</span></li>
+        </ol>
+        <section class="order-step is-active" data-order-step="1">
+          <div class="dialog-form-grid order-basic-grid">
+            <label><span>訂單號</span><input name="order_id" required /></label>
+            <label><span>公司名</span><input name="company_name" required /></label>
+          </div>
+          <div class="garment-section-head">
+            <div><h4>服裝類型</h4><p>按性別配置員工在客戶端可看到的服裝選項。</p></div>
+          </div>
+          <div class="garment-gender-grid">
+            <section class="garment-gender-card">
+              <div class="garment-card-head"><div><span class="gender-badge male">男</span><strong>男士服裝</strong></div><button class="secondary compact-button" type="button" data-add-garment="男">新增類型</button></div>
+              <div class="garment-type-list" id="male-garment-types"></div>
+            </section>
+            <section class="garment-gender-card">
+              <div class="garment-card-head"><div><span class="gender-badge female">女</span><strong>女士服裝</strong></div><button class="secondary compact-button" type="button" data-add-garment="女">新增類型</button></div>
+              <div class="garment-type-list" id="female-garment-types"></div>
+            </section>
+          </div>
+          <p class="form-error" id="order-type-error" hidden></p>
+        </section>
+        <section class="order-step" data-order-step="2">
+          <div class="garment-section-head">
+            <div><h4>數量規則</h4><p>默認數量會帶入客戶端；關閉“允許更改”後，員工只能按默認數量確認。</p></div>
+          </div>
+          <div class="quantity-config-list" id="garment-quantity-config"></div>
+          <p class="form-error" id="order-quantity-error" hidden></p>
+        </section>
+        <section class="order-step" data-order-step="3">
+          <div class="garment-section-head rule-section-head">
+            <div><h4>組合數量限制</h4><p>限制同一性別下多個服裝類型的合計數量；如本訂單不需要限制，可直接跳過。</p></div>
+            <button class="secondary compact-button" type="button" data-add-quantity-rule>添加限制規則</button>
+          </div>
+          <div class="quantity-rule-list" id="quantity-rule-list"></div>
+          <p class="form-error" id="order-rule-error" hidden></p>
+        </section>
+        <div class="dialog-actions order-dialog-actions">
+          <button class="secondary" type="button" id="order-step-prev" hidden>上一步</button>
+          <button type="button" id="order-step-next">下一步：配置數量</button>
+          <button class="secondary" type="submit" id="order-skip-rules" hidden>跳過並保存</button>
+          <button type="submit" id="order-save" hidden>保存訂單</button>
         </div>
-        <div class="dialog-actions"><button type="submit">保存訂單</button></div>
       </form>
     </dialog>
     <dialog class="entity-dialog" id="employee-dialog">

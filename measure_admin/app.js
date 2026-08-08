@@ -10,6 +10,8 @@ const recordPagination = {
   女: { page: 1, pageSize: 15 },
 };
 const employeePagination = { page: 1, pageSize: 15 };
+const orderEditorState = { step: 1, garments: [], quantityRules: [] };
+const signatureDetailState = { orderId: "", page: 1, pageSize: 15 };
 
 const measurementLabels = {
   shirt_collar: "上衣領圍（襯衫）",
@@ -67,7 +69,24 @@ const comparisonState = { step: 1, garmentSignature: "", results: [], stats: nul
 function seedStore() {
   return {
     tailors: [{ id: "T001", name: "張師傅", username: "tailor-demo", has_password: true }],
-    orders: [{ id: "O001", order_id: "ORDER001", company_name: "澳設集團 2026 制服" }],
+    orders: [{
+      id: "O001",
+      order_id: "ORDER001",
+      company_name: "澳設集團 2026 制服",
+      garments: [
+        { id: "G001", gender: "男", name: "襯衫", default_quantity: 2, quantity_editable: true },
+        { id: "G002", gender: "男", name: "西褲", default_quantity: 2, quantity_editable: true },
+        { id: "G003", gender: "女", name: "襯衫", default_quantity: 2, quantity_editable: true },
+        { id: "G004", gender: "女", name: "半裙", default_quantity: 2, quantity_editable: true },
+        { id: "G005", gender: "男", name: "毛衣", default_quantity: 2, quantity_editable: true },
+        { id: "G006", gender: "女", name: "連衣裙", default_quantity: 2, quantity_editable: true },
+        { id: "G007", gender: "女", name: "西褲", default_quantity: 2, quantity_editable: true },
+      ],
+      quantity_rules: [
+        { id: "R001", gender: "女", garment_ids: ["G006", "G007"], operator: "lte", quantity: 4 },
+        { id: "R002", gender: "男", garment_ids: ["G001", "G005"], operator: "eq", quantity: 4 },
+      ],
+    }],
     employees: [
       { id: "E001", employee_id: "EMP001", name: "陳嘉儀", gender: "女", height_cm: "166", weight_kg: "54.5", unit_name: "澳門分部", order_id: "ORDER001" },
       { id: "E002", employee_id: "EMP002", name: "李國輝", gender: "男", height_cm: "176", weight_kg: "72", unit_name: "香港分部", order_id: "ORDER001" },
@@ -120,6 +139,10 @@ function showToast(message) {
   showToast.timer = setTimeout(() => {
     toast.hidden = true;
   }, 2200);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 }
 
 function uid(prefix) {
@@ -187,11 +210,79 @@ function renderTailors() {
 function renderOrders() {
   const rows = loadStore().orders.map((item) => `
     <tr>
-      <td>${item.order_id}</td><td>${item.company_name}</td>
-      <td><div class="row-actions"><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button></div></td>
+      <td>${escapeHtml(item.order_id)}</td><td>${escapeHtml(item.company_name)}</td>
+      <td>${garmentSummary(item, "男")}</td><td>${garmentSummary(item, "女")}</td><td>${quantityRuleSummary(item)}</td>
+      <td><div class="row-actions"><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button></div></td>
     </tr>
   `);
-  renderTable("order-table", ["訂單號", "公司名", "操作"], rows);
+  renderTable("order-table", ["訂單號", "公司名", "男士服裝配置", "女士服裝配置", "組合數量限制", "操作"], rows);
+}
+
+function employeeIsVerified(employee) {
+  return employee.verification_status === "verified" && employee.signature_confirmation?.confirmStatus === "confirmed";
+}
+
+function filteredSignatureEmployees() {
+  const name = document.getElementById("signature-filter-name").value.trim().toLowerCase();
+  const employeeId = document.getElementById("signature-filter-employee").value.trim().toLowerCase();
+  return loadStore().employees.filter((item) => {
+    if (item.order_id !== signatureDetailState.orderId) return false;
+    if (name && !String(item.name || "").toLowerCase().includes(name)) return false;
+    if (employeeId && !String(item.employee_id || "").toLowerCase().includes(employeeId)) return false;
+    return true;
+  });
+}
+
+function renderSignatureDetails() {
+  if (!signatureDetailState.orderId) return;
+  const order = loadStore().orders.find((item) => item.order_id === signatureDetailState.orderId);
+  const employees = filteredSignatureEmployees();
+  const totalPages = Math.max(1, Math.ceil(employees.length / signatureDetailState.pageSize));
+  signatureDetailState.page = Math.min(signatureDetailState.page, totalPages);
+  const start = (signatureDetailState.page - 1) * signatureDetailState.pageSize;
+  const rows = employees.slice(start, start + signatureDetailState.pageSize).map((item) => {
+    const verified = employeeIsVerified(item);
+    return `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.employee_id)}</td><td><span class="status-badge ${verified ? "verified" : "unverified"}">${verified ? "已驗證" : "未驗證"}</span></td><td>${verified ? `<button class="danger" type="button" data-revoke-signature="${item.id}">撤銷驗證</button>` : "-"}</td></tr>`;
+  });
+  document.getElementById("signature-order-subtitle").textContent = order ? `${order.order_id} / ${order.company_name}｜共 ${employees.length} 名員工` : signatureDetailState.orderId;
+  renderTable("signature-table", ["客戶姓名", "員工編號", "驗證狀態", "操作"], rows, "暫無員工明細");
+  document.getElementById("signature-pagination").innerHTML = `<span>共 ${employees.length} 條，第 ${signatureDetailState.page} / ${totalPages} 頁，每頁最多 15 條</span><div><button class="secondary" type="button" data-signature-page="prev" ${signatureDetailState.page <= 1 ? "disabled" : ""}>上一頁</button><button class="secondary" type="button" data-signature-page="next" ${signatureDetailState.page >= totalPages ? "disabled" : ""}>下一頁</button></div>`;
+}
+
+function openSignatureDetails(orderId) {
+  signatureDetailState.orderId = orderId;
+  signatureDetailState.page = 1;
+  document.getElementById("signature-filter-name").value = "";
+  document.getElementById("signature-filter-employee").value = "";
+  renderSignatureDetails();
+  switchView("signatures");
+  document.getElementById("view-title").textContent = "簽字明細";
+}
+
+function exportSignatureDetails() {
+  const rows = filteredSignatureEmployees();
+  const lines = [
+    ["訂單號", "公司名", "客戶姓名", "員工編號", "驗證狀態", "簽字時間"].map(csvEscape).join(","),
+    ...rows.map((item) => [signatureDetailState.orderId, orderLabel(signatureDetailState.orderId).split(" / ")[1] || "", item.name, item.employee_id, employeeIsVerified(item) ? "已驗證" : "未驗證", item.signature_confirmation?.signedAt || ""].map(csvEscape).join(",")),
+  ];
+  downloadCsvBlob(new Blob([`\ufeff${lines.join("\n")}`], { type: "text/csv;charset=utf-8" }), `${signatureDetailState.orderId}_簽字明細.csv`);
+}
+
+function garmentSummary(order, gender) {
+  const garments = Array.isArray(order.garments) ? order.garments.filter((item) => item.gender === gender) : [];
+  if (!garments.length) return "未配置";
+  return garments.map((item) => `${escapeHtml(item.name)} × ${Number(item.default_quantity) || 1}${item.quantity_editable ? "（可改）" : "（固定）"}`).join("<br>");
+}
+
+function quantityRuleSummary(order) {
+  const rules = Array.isArray(order.quantity_rules) ? order.quantity_rules : [];
+  if (!rules.length) return "無限制";
+  const garments = Array.isArray(order.garments) ? order.garments : [];
+  return rules.map((rule) => {
+    const garmentIds = Array.isArray(rule.garment_ids) ? rule.garment_ids : [];
+    const names = garmentIds.map((id) => garments.find((item) => item.id === id)?.name).filter(Boolean);
+    return `${rule.gender}士：${names.map(escapeHtml).join(" + ")}，合計${rule.operator === "eq" ? "剛好" : "不多於"} ${Number(rule.quantity) || 1} 件`;
+  }).join("<br>");
 }
 
 function renderEmployees() {
@@ -329,6 +420,7 @@ function renderAll() {
   renderEmployees();
   renderRecords("男");
   renderRecords("女");
+  renderSignatureDetails();
 }
 
 function upsert(collection, item) {
@@ -356,6 +448,155 @@ function fillForm(formId, item) {
   });
 }
 
+function setOrderStep(step) {
+  orderEditorState.step = step;
+  document.querySelectorAll("[data-order-step]").forEach((section) => section.classList.toggle("is-active", Number(section.dataset.orderStep) === step));
+  document.querySelectorAll("[data-order-step-indicator]").forEach((item) => item.classList.toggle("is-active", Number(item.dataset.orderStepIndicator) === step));
+  document.getElementById("order-step-prev").hidden = step === 1;
+  const hasRules = orderEditorState.quantityRules.length > 0;
+  const nextButton = document.getElementById("order-step-next");
+  nextButton.hidden = step === 3;
+  nextButton.textContent = step === 1 ? "下一步：配置數量" : "下一步：組合限制";
+  document.getElementById("order-skip-rules").hidden = step !== 3 || hasRules;
+  document.getElementById("order-save").hidden = step !== 3 || !hasRules;
+  document.getElementById("order-type-error").hidden = true;
+  document.getElementById("order-quantity-error").hidden = true;
+  document.getElementById("order-rule-error").hidden = true;
+}
+
+function renderGarmentTypeLists() {
+  [["男", "male-garment-types"], ["女", "female-garment-types"]].forEach(([gender, targetId]) => {
+    const target = document.getElementById(targetId);
+    const garments = orderEditorState.garments.filter((item) => item.gender === gender);
+    target.innerHTML = garments.length ? garments.map((item) => `
+      <div class="garment-type-row" data-garment-row="${item.id}">
+        <input type="text" value="${escapeHtml(item.name)}" placeholder="例如：${gender === "男" ? "西裝外套" : "半裙"}" aria-label="${gender}士服裝類型" />
+        <button type="button" data-remove-garment="${item.id}" aria-label="刪除${escapeHtml(item.name || "此類型")}">×</button>
+      </div>
+    `).join("") : `<p class="garment-empty">尚未配置${gender}士服裝，可按“新增類型”添加。</p>`;
+  });
+}
+
+function syncGarmentTypeInputs() {
+  document.querySelectorAll("[data-garment-row]").forEach((row) => {
+    const garment = orderEditorState.garments.find((item) => item.id === row.dataset.garmentRow);
+    if (garment) garment.name = row.querySelector("input").value;
+  });
+}
+
+function showOrderError(targetId, message) {
+  const target = document.getElementById(targetId);
+  target.textContent = message;
+  target.hidden = false;
+}
+
+function validateOrderTypes() {
+  const form = document.getElementById("order-form");
+  if (!form.elements.order_id.reportValidity() || !form.elements.company_name.reportValidity()) return false;
+  syncGarmentTypeInputs();
+  if (!orderEditorState.garments.length) {
+    showOrderError("order-type-error", "請至少配置一個男士或女士服裝類型。");
+    return false;
+  }
+  if (orderEditorState.garments.some((item) => !item.name.trim())) {
+    showOrderError("order-type-error", "服裝類型名稱不能留空，請填寫或刪除空白項目。");
+    return false;
+  }
+  const hasDuplicate = ["男", "女"].some((gender) => {
+    const names = orderEditorState.garments.filter((item) => item.gender === gender).map((item) => item.name.trim().toLowerCase());
+    return new Set(names).size !== names.length;
+  });
+  if (hasDuplicate) {
+    showOrderError("order-type-error", "同一性別下不能配置重複的服裝類型。");
+    return false;
+  }
+  orderEditorState.garments.forEach((item) => { item.name = item.name.trim(); });
+  return true;
+}
+
+function renderGarmentQuantityConfig() {
+  const target = document.getElementById("garment-quantity-config");
+  target.innerHTML = ["男", "女"].map((gender) => {
+    const garments = orderEditorState.garments.filter((item) => item.gender === gender);
+    if (!garments.length) return "";
+    return `
+      <section class="quantity-gender-group">
+        <div class="quantity-gender-head"><span class="gender-badge ${gender === "男" ? "male" : "female"}">${gender}</span><strong>${gender}士服裝</strong></div>
+        ${garments.map((item) => `
+          <div class="quantity-config-row" data-quantity-garment="${item.id}">
+            <strong>${escapeHtml(item.name)}</strong>
+            <label><span>默認數量</span><input class="garment-default-quantity" type="number" min="1" max="99" step="1" value="${Number(item.default_quantity) || 1}" required /></label>
+            <label class="toggle-field"><input class="garment-quantity-editable" type="checkbox" ${item.quantity_editable !== false ? "checked" : ""} /><span>允許員工更改數量</span></label>
+          </div>
+        `).join("")}
+      </section>
+    `;
+  }).join("");
+}
+
+function syncGarmentQuantityInputs() {
+  let valid = true;
+  document.querySelectorAll("[data-quantity-garment]").forEach((row) => {
+    const garment = orderEditorState.garments.find((item) => item.id === row.dataset.quantityGarment);
+    const quantityInput = row.querySelector(".garment-default-quantity");
+    const quantity = Number(quantityInput.value);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+      valid = false;
+      quantityInput.setCustomValidity("請輸入 1 至 99 的整數");
+      quantityInput.reportValidity();
+    } else {
+      quantityInput.setCustomValidity("");
+      garment.default_quantity = quantity;
+      garment.quantity_editable = row.querySelector(".garment-quantity-editable").checked;
+    }
+  });
+  if (!valid) showOrderError("order-quantity-error", "每個服裝類型的默認數量必須是 1 至 99 的整數。");
+  return valid;
+}
+
+function renderQuantityRules() {
+  const target = document.getElementById("quantity-rule-list");
+  if (!orderEditorState.quantityRules.length) {
+    target.innerHTML = `<div class="garment-empty rule-empty"><strong>暫無組合限制</strong><span>可添加限制規則，或直接跳過並保存訂單。</span></div>`;
+    setOrderStep(orderEditorState.step);
+    return;
+  }
+  target.innerHTML = orderEditorState.quantityRules.map((rule, index) => {
+    const genderGarments = orderEditorState.garments.filter((item) => item.gender === rule.gender);
+    return `
+      <section class="quantity-rule-card" data-quantity-rule="${rule.id}">
+        <div class="quantity-rule-head"><strong>限制規則 ${index + 1}</strong><button type="button" data-remove-quantity-rule="${rule.id}">刪除規則</button></div>
+        <div class="quantity-rule-fields">
+          <label><span>適用性別</span><select class="rule-gender"><option value="男" ${rule.gender === "男" ? "selected" : ""}>男士</option><option value="女" ${rule.gender === "女" ? "selected" : ""}>女士</option></select></label>
+          <fieldset class="rule-garment-options">
+            <legend>組合服裝類型（至少選 2 項）</legend>
+            <div>${genderGarments.map((garment) => `<label><input type="checkbox" value="${garment.id}" ${rule.garment_ids.includes(garment.id) ? "checked" : ""} /><span>${escapeHtml(garment.name)}</span></label>`).join("")}</div>
+          </fieldset>
+          <label><span>限制條件</span><select class="rule-operator"><option value="lte" ${rule.operator === "lte" ? "selected" : ""}>不多於</option><option value="eq" ${rule.operator === "eq" ? "selected" : ""}>剛好</option></select></label>
+          <label><span>限制數量</span><div class="quantity-with-unit"><input class="rule-quantity" type="number" min="1" max="99" step="1" value="${Number(rule.quantity) || 1}" /><span>件</span></div></label>
+        </div>
+      </section>
+    `;
+  }).join("");
+  setOrderStep(orderEditorState.step);
+}
+
+function syncQuantityRuleInputs(validate = false) {
+  let valid = true;
+  document.querySelectorAll("[data-quantity-rule]").forEach((row) => {
+    const rule = orderEditorState.quantityRules.find((item) => item.id === row.dataset.quantityRule);
+    if (!rule) return;
+    rule.gender = row.querySelector(".rule-gender").value;
+    rule.garment_ids = [...row.querySelectorAll('.rule-garment-options input[type="checkbox"]:checked')].map((input) => input.value);
+    rule.operator = row.querySelector(".rule-operator").value;
+    rule.quantity = Number(row.querySelector(".rule-quantity").value);
+    if (validate && rule.garment_ids.length < 2) valid = false;
+    if (validate && (!Number.isInteger(rule.quantity) || rule.quantity < 1 || rule.quantity > 99)) valid = false;
+  });
+  if (!valid) showOrderError("order-rule-error", "每條限制規則需選擇至少 2 個服裝類型，並填寫 1 至 99 的整數數量。");
+  return valid;
+}
+
 function openEntityDialog(type, item = null) {
   const form = document.getElementById(`${type}-form`);
   const dialog = document.getElementById(`${type}-dialog`);
@@ -364,6 +605,26 @@ function openEntityDialog(type, item = null) {
   form.elements.id.value = "";
   if (item) fillForm(`${type}-form`, item);
   document.getElementById(`${type}-dialog-title`).textContent = `${item ? "編輯" : "新增"}${labels[type]}`;
+  if (type === "order") {
+    document.getElementById("garment-quantity-config").innerHTML = "";
+    document.getElementById("quantity-rule-list").innerHTML = "";
+    orderEditorState.garments = Array.isArray(item?.garments) ? item.garments.map((garment) => ({
+      id: garment.id || uid("G"),
+      gender: garment.gender,
+      name: garment.name || "",
+      default_quantity: Number(garment.default_quantity) || 1,
+      quantity_editable: garment.quantity_editable !== false,
+    })) : [];
+    orderEditorState.quantityRules = Array.isArray(item?.quantity_rules) ? item.quantity_rules.map((rule) => ({
+      id: rule.id || uid("R"),
+      gender: rule.gender === "女" ? "女" : "男",
+      garment_ids: Array.isArray(rule.garment_ids) ? [...rule.garment_ids] : [],
+      operator: rule.operator === "eq" ? "eq" : "lte",
+      quantity: Number(rule.quantity) || 1,
+    })) : [];
+    renderGarmentTypeLists();
+    setOrderStep(1);
+  }
   dialog.showModal();
 }
 
@@ -854,7 +1115,8 @@ async function importEmployees() {
     let updated = 0;
     rows.forEach((row) => {
       const existingIndex = store.employees.findIndex((item) => item.order_id === orderId && item.employee_id === row.employee_id);
-      const next = { ...row, order_id: orderId, id: existingIndex >= 0 ? store.employees[existingIndex].id : uid("E") };
+      const existing = existingIndex >= 0 ? store.employees[existingIndex] : null;
+      const next = { ...existing, ...row, order_id: orderId, id: existing?.id || uid("E"), verification_status: existing?.verification_status || "unverified", signature_confirmation: existing?.signature_confirmation || null };
       if (existingIndex >= 0) {
         store.employees[existingIndex] = next;
         updated += 1;
@@ -1002,6 +1264,23 @@ document.querySelectorAll("#employee-filter-id, #employee-filter-name, #employee
   });
 });
 
+document.querySelectorAll("#signature-filter-name, #signature-filter-employee").forEach((field) => {
+  field.addEventListener("input", () => {
+    signatureDetailState.page = 1;
+    renderSignatureDetails();
+  });
+});
+
+document.getElementById("clear-signature-filters").addEventListener("click", () => {
+  document.getElementById("signature-filter-name").value = "";
+  document.getElementById("signature-filter-employee").value = "";
+  signatureDetailState.page = 1;
+  renderSignatureDetails();
+});
+
+document.getElementById("back-to-orders").addEventListener("click", () => switchView("orders"));
+document.getElementById("export-signatures").addEventListener("click", exportSignatureDetails);
+
 document.getElementById("clear-employee-filters").addEventListener("click", () => {
   document.getElementById("employee-filter-id").value = "";
   document.getElementById("employee-filter-name").value = "";
@@ -1031,17 +1310,83 @@ document.getElementById("tailor-form").addEventListener("submit", (event) => {
 
 document.getElementById("order-form").addEventListener("submit", (event) => {
   event.preventDefault();
+  if (orderEditorState.step < 3) {
+    document.getElementById("order-step-next").click();
+    return;
+  }
+  if (!syncQuantityRuleInputs(true)) return;
   const data = Object.fromEntries(new FormData(event.currentTarget));
-  upsert("orders", { ...data, id: data.id || uid("O") });
+  const duplicate = loadStore().orders.some((item) => item.order_id === data.order_id.trim() && item.id !== data.id);
+  if (duplicate) {
+    setOrderStep(1);
+    showOrderError("order-type-error", "訂單號已存在，請使用其他訂單號。");
+    return;
+  }
+  upsert("orders", {
+    id: data.id || uid("O"),
+    order_id: data.order_id.trim(),
+    company_name: data.company_name.trim(),
+    garments: orderEditorState.garments.map((item) => ({ ...item })),
+    quantity_rules: orderEditorState.quantityRules.map((item) => ({ ...item, garment_ids: [...item.garment_ids] })),
+  });
   event.currentTarget.reset();
   document.getElementById("order-dialog").close();
   showToast("訂單已保存");
 });
 
+document.getElementById("order-step-next").addEventListener("click", () => {
+  if (orderEditorState.step === 1) {
+    document.getElementById("order-type-error").hidden = true;
+    if (!validateOrderTypes()) return;
+    const garmentIds = new Set(orderEditorState.garments.map((item) => item.id));
+    orderEditorState.quantityRules.forEach((rule) => { rule.garment_ids = rule.garment_ids.filter((id) => garmentIds.has(id)); });
+    renderGarmentQuantityConfig();
+    setOrderStep(2);
+    return;
+  }
+  document.getElementById("order-quantity-error").hidden = true;
+  if (!syncGarmentQuantityInputs()) return;
+  renderQuantityRules();
+  setOrderStep(3);
+});
+
+document.getElementById("order-step-prev").addEventListener("click", () => {
+  if (orderEditorState.step === 3) {
+    syncQuantityRuleInputs(false);
+    renderGarmentQuantityConfig();
+    setOrderStep(2);
+    return;
+  }
+  syncGarmentQuantityInputs();
+  renderGarmentTypeLists();
+  setOrderStep(1);
+});
+
+document.getElementById("quantity-rule-list").addEventListener("change", (event) => {
+  const genderSelect = event.target.closest(".rule-gender");
+  if (!genderSelect) return;
+  const row = genderSelect.closest("[data-quantity-rule]");
+  syncQuantityRuleInputs(false);
+  const rule = orderEditorState.quantityRules.find((item) => item.id === row.dataset.quantityRule);
+  if (!rule) return;
+  rule.gender = genderSelect.value;
+  rule.garment_ids = [];
+  renderQuantityRules();
+});
+
 document.getElementById("employee-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.currentTarget));
-  upsert("employees", { ...data, id: data.id || uid("E") });
+  const current = loadStore().employees.find((item) => item.id === data.id);
+  const identityChanged = current && (current.order_id !== data.order_id || current.employee_id !== data.employee_id);
+  upsert("employees", {
+    ...current,
+    ...data,
+    id: data.id || uid("E"),
+    verification_status: identityChanged ? "unverified" : current?.verification_status || "unverified",
+    signature_confirmation: identityChanged ? null : current?.signature_confirmation || null,
+    verified_at: identityChanged ? "" : current?.verified_at || "",
+  });
   event.currentTarget.reset();
   document.getElementById("employee-dialog").close();
   renderOrderSelect();
@@ -1093,6 +1438,45 @@ document.body.addEventListener("click", (event) => {
   const button = event.target.closest("button");
   if (!button) return;
   const store = loadStore();
+  if (button.dataset.addGarment) {
+    syncGarmentTypeInputs();
+    orderEditorState.garments.push({ id: uid("G"), gender: button.dataset.addGarment, name: "", default_quantity: 1, quantity_editable: true });
+    renderGarmentTypeLists();
+    const targetId = button.dataset.addGarment === "男" ? "male-garment-types" : "female-garment-types";
+    document.querySelector(`#${targetId} [data-garment-row]:last-child input`)?.focus();
+  }
+  if (button.dataset.removeGarment) {
+    syncGarmentTypeInputs();
+    orderEditorState.garments = orderEditorState.garments.filter((item) => item.id !== button.dataset.removeGarment);
+    renderGarmentTypeLists();
+  }
+  if (button.hasAttribute("data-add-quantity-rule")) {
+    syncQuantityRuleInputs(false);
+    const eligibleGender = ["女", "男"].find((gender) => orderEditorState.garments.filter((item) => item.gender === gender).length >= 2);
+    if (!eligibleGender) {
+      showOrderError("order-rule-error", "至少需为同一性别配置 2 个服装类型，才能添加组合限制。");
+    } else {
+      orderEditorState.quantityRules.push({ id: uid("R"), gender: eligibleGender, garment_ids: [], operator: "lte", quantity: 4 });
+      renderQuantityRules();
+    }
+  }
+  if (button.dataset.removeQuantityRule) {
+    syncQuantityRuleInputs(false);
+    orderEditorState.quantityRules = orderEditorState.quantityRules.filter((item) => item.id !== button.dataset.removeQuantityRule);
+    renderQuantityRules();
+  }
+  if (button.dataset.openSignatures) openSignatureDetails(button.dataset.openSignatures);
+  if (button.dataset.revokeSignature) {
+    const employee = store.employees.find((item) => item.id === button.dataset.revokeSignature);
+    if (employee && window.confirm(`確定撤銷 ${employee.name} 的驗證？撤銷後員工可重新修改數量並簽字。`)) {
+      employee.verification_status = "unverified";
+      employee.signature_confirmation = null;
+      employee.verified_at = "";
+      saveStore(store);
+      renderSignatureDetails();
+      showToast("驗證已撤銷，員工可重新確認數量並簽字。");
+    }
+  }
   if (button.dataset.openEditor) openEntityDialog(button.dataset.openEditor);
   if (button.dataset.editTailor) openEntityDialog("tailor", store.tailors.find((item) => item.id === button.dataset.editTailor));
   if (button.dataset.deleteTailor) removeItem("tailors", button.dataset.deleteTailor);
@@ -1132,6 +1516,10 @@ document.body.addEventListener("click", (event) => {
   if (button.dataset.employeePage) {
     employeePagination.page += button.dataset.employeePage === "next" ? 1 : -1;
     renderEmployees();
+  }
+  if (button.dataset.signaturePage) {
+    signatureDetailState.page += button.dataset.signaturePage === "next" ? 1 : -1;
+    renderSignatureDetails();
   }
   if (button.hasAttribute("data-clear-export-filters")) {
     const panel = button.closest("[data-record-export-panel]");

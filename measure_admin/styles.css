@@ -261,6 +261,13 @@ button {
 .employee-filters { display: grid; grid-template-columns: 160px 160px minmax(220px, 1fr) 100px; gap: 12px; align-items: end; }
 .employee-filters #employee-filter-id,
 .employee-filters #employee-filter-name { width: 160px; }
+.signature-detail-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; }
+.signature-detail-head h3, .signature-detail-head p { margin: 0; }
+.signature-detail-head p { margin-top: 5px; color: var(--muted); }
+.signature-filters { display: grid; grid-template-columns: 220px 220px 100px; gap: 12px; align-items: end; }
+.status-badge { display: inline-flex; align-items: center; min-height: 28px; border-radius: 999px; padding: 0 10px; font-size: 12px; font-weight: 900; }
+.status-badge.verified { background: #dcfce7; color: #166534; }
+.status-badge.unverified { background: #f1f5f9; color: #64748b; }
 .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .list-toolbar h3, .list-toolbar p { margin: 0; }
 .list-toolbar p { margin-top: 6px; }
@@ -356,6 +363,60 @@ textarea { width: 100%; border: 1px solid #cbd6e2; border-radius: 8px; padding: 
 .dialog-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .employee-dialog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .dialog-tip { margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+
+.order-dialog { width: min(960px, calc(100vw - 40px)); overflow-y: auto; }
+.order-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; }
+.order-steps li { display: flex; align-items: center; gap: 9px; border-radius: 8px; padding: 10px 12px; background: #eef3f8; color: var(--muted); font-size: 13px; font-weight: 900; }
+.order-steps li strong { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #dbe5ef; }
+.order-steps li.is-active { background: #e7f2fb; color: var(--blue-dark); }
+.order-steps li.is-active strong { background: var(--blue); color: #fff; }
+.order-step { display: none; }
+.order-step.is-active { display: block; }
+.order-basic-grid { margin-bottom: 20px; }
+.garment-section-head { margin-bottom: 12px; }
+.garment-section-head h4, .garment-section-head p { margin: 0; }
+.garment-section-head h4 { font-size: 17px; }
+.garment-section-head p { margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.garment-gender-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.garment-gender-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #f8fafc; }
+.garment-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.garment-card-head > div { display: flex; align-items: center; gap: 8px; }
+.gender-badge { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; font-size: 13px; font-weight: 900; }
+.gender-badge.male { background: #dceeff; color: #075ca8; }
+.gender-badge.female { background: #fce7f3; color: #a61b62; }
+.compact-button { min-height: 34px; padding: 0 11px; font-size: 13px; }
+.garment-type-list { display: grid; gap: 8px; }
+.garment-type-row { display: grid; grid-template-columns: minmax(0, 1fr) 38px; gap: 8px; align-items: center; }
+.garment-type-row input { min-width: 0; }
+.garment-type-row button { width: 38px; min-height: 38px; padding: 0; border: 1px solid #efc2bd; background: #fff1f0; color: var(--red); }
+.garment-empty { margin: 0; padding: 18px 10px; border: 1px dashed #cbd6e2; border-radius: 8px; color: var(--muted); font-size: 13px; text-align: center; }
+.quantity-config-list { display: grid; gap: 14px; }
+.quantity-gender-group { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.quantity-gender-head { display: flex; align-items: center; gap: 8px; padding: 11px 14px; background: #f1f5f9; }
+.quantity-config-row { display: grid; grid-template-columns: minmax(180px, 1fr) 160px 180px; gap: 14px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line); }
+.quantity-config-row > strong { overflow-wrap: anywhere; }
+.quantity-config-row label span { font-size: 12px; }
+.toggle-field { display: flex; align-items: center; gap: 9px; min-height: 40px; }
+.toggle-field input { width: 18px; min-height: auto; height: 18px; margin: 0; }
+.form-error { margin: 12px 0 0; color: var(--red); font-size: 13px; font-weight: 800; }
+.order-dialog-actions { justify-content: space-between; }
+.order-dialog-actions #order-step-next, .order-dialog-actions #order-save, .order-dialog-actions #order-skip-rules { margin-left: auto; }
+.rule-section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.quantity-rule-list { display: grid; gap: 12px; }
+.rule-empty strong, .rule-empty span { display: block; }
+.rule-empty span { margin-top: 5px; }
+.quantity-rule-card { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.quantity-rule-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: #f1f5f9; }
+.quantity-rule-head button { min-height: 32px; border: 1px solid #efc2bd; background: #fff1f0; color: var(--red); font-size: 13px; }
+.quantity-rule-fields { display: grid; grid-template-columns: 120px minmax(280px, 1fr) 130px 120px; gap: 12px; align-items: end; padding: 14px; }
+.rule-garment-options { min-width: 0; margin: 0; border: 0; padding: 0; }
+.rule-garment-options legend { margin-bottom: 7px; color: #34465b; font-size: 13px; font-weight: 800; }
+.rule-garment-options > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.rule-garment-options label { display: flex; grid-template-columns: none; align-items: center; gap: 6px; min-height: 40px; border: 1px solid #cbd6e2; border-radius: 8px; padding: 0 10px; background: #fff; font-size: 13px; }
+.rule-garment-options label:has(input:checked) { border-color: var(--blue); background: #f0f7fd; color: var(--blue-dark); }
+.rule-garment-options input { width: 16px; height: 16px; min-height: auto; margin: 0; }
+.quantity-with-unit { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; }
+.quantity-with-unit > span { font-size: 14px; font-weight: 800; }
 
 .comparison-dialog,
 .analysis-results-dialog {
@@ -527,11 +588,21 @@ td {
   }
 
   .analysis-condition-row { grid-template-columns: minmax(220px, 1fr) 140px 108px 108px; gap: 8px; }
+  .quantity-rule-fields { grid-template-columns: 120px minmax(240px, 1fr) 120px 110px; gap: 8px; }
   .analysis-condition-row .analysis-min,
   .analysis-condition-row .analysis-max { width: 108px; }
 }
 
 @media (max-width: 760px) {
+  .signature-detail-head { grid-template-columns: 1fr; }
+  .signature-filters { grid-template-columns: 1fr; }
+  .order-dialog { width: calc(100vw - 10px); max-height: calc(100vh - 10px); padding: 14px; }
+  .order-steps,
+  .garment-gender-grid,
+  .order-basic-grid { grid-template-columns: 1fr; }
+  .quantity-config-row { grid-template-columns: 1fr; gap: 9px; }
+  .rule-section-head { align-items: stretch; flex-direction: column; }
+  .quantity-rule-fields { grid-template-columns: 1fr; }
   .employee-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .employee-filters #employee-filter-id,
   .employee-filters #employee-filter-name { width: 100%; }

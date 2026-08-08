@@ -9,6 +9,7 @@ let currentEmployee = null;
 let resetCodeSent = false;
 let signatureDirty = false;
 let confirmedData = null;
+const sharedAdminStoreKey = "mc-measure-admin-prototype-state";
 
 const employees = {
   EMP001: {
@@ -32,6 +33,70 @@ const employees = {
     maskedPhone: "+853 **** 4567",
   },
 };
+
+function escapeClientHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+}
+
+function maskPhone(phone) {
+  const value = String(phone || "");
+  return value ? `${value.slice(0, 4)} **** ${value.slice(-4)}` : "未提供手機號";
+}
+
+function loadSharedAdminStore() {
+  try {
+    return JSON.parse(localStorage.getItem(sharedAdminStoreKey) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function sharedEmployee(orderId, employeeId) {
+  const store = loadSharedAdminStore();
+  const record = store?.employees?.find((item) => item.order_id === orderId && item.employee_id === employeeId);
+  if (!record) return null;
+  return {
+    orderId: record.order_id,
+    employeeId: record.employee_id,
+    name: record.name,
+    gender: record.gender,
+    department: record.unit_name || "-",
+    phone: record.phone || "",
+    email: record.email || "",
+    maskedPhone: record.maskedPhone || maskPhone(record.phone),
+    signatureConfirmation: record.verification_status === "verified" ? record.signature_confirmation : null,
+  };
+}
+
+function renderSharedOrderOptions() {
+  const orders = loadSharedAdminStore()?.orders;
+  if (!Array.isArray(orders) || !orders.length) return;
+  const options = orders.map((order) => `<option value="${escapeClientHtml(order.order_id)}">${escapeClientHtml(order.order_id)} - ${escapeClientHtml(order.company_name)}</option>`).join("");
+  document.querySelector('[name="order_id"]').innerHTML = options;
+  document.querySelector('[name="reset_order_id"]').innerHTML = options;
+}
+
+function persistSignatureConfirmation(data) {
+  const store = loadSharedAdminStore();
+  const employee = store?.employees?.find((item) => item.order_id === data.employee.orderId && item.employee_id === data.employee.employeeId);
+  if (!employee) return false;
+  employee.signature_confirmation = {
+    heightCm: data.heightCm,
+    weightKg: data.weightKg,
+    isPregnant: data.isPregnant,
+    phone: data.phone,
+    email: data.email,
+    measurementRequired: data.measurementRequired,
+    selectedSkuList: data.selectedSkuList,
+    signatureImage: data.signatureImage,
+    signedAt: data.signedAt,
+    confirmStatus: "confirmed",
+  };
+  employee.verification_status = "verified";
+  employee.verified_at = data.signedAt;
+  localStorage.setItem(sharedAdminStoreKey, JSON.stringify(store));
+  return true;
+}
 
 function switchView(viewName) {
   tabs.forEach((tab) => {
@@ -210,7 +275,7 @@ document.getElementById("login-form").addEventListener("submit", (event) => {
   const employeeId = formData.get("employee_id").trim();
   const password = formData.get("password").trim();
   const result = document.getElementById("login-result");
-  const employee = employees[employeeId];
+  const employee = sharedEmployee(orderId, employeeId) || employees[employeeId];
 
   if (!employee || employee.orderId !== orderId) {
     showNotice(result, "error", "登入失敗", "未找到該員工賬號，請確認訂單 / 項目和員工 ID。");
@@ -221,6 +286,13 @@ document.getElementById("login-form").addEventListener("submit", (event) => {
     return;
   }
 
+  if (employee.signatureConfirmation?.confirmStatus === "confirmed") {
+    confirmedData = { ...employee.signatureConfirmation, employee };
+    renderSummary(document.getElementById("locked-summary"), confirmedData, true);
+    showNotice(result, "success", "已完成驗證", "服裝數量及簽字已鎖定，如需修改請聯絡工作人員撤銷驗證。");
+    window.setTimeout(() => switchView("locked"), 350);
+    return;
+  }
   showNotice(result, "success", "登入成功", "請繼續補充個人資料並完成服裝需求確認。");
   resetFlowForEmployee(employee);
   window.setTimeout(() => switchView("flow"), 350);
@@ -357,6 +429,7 @@ document.getElementById("submit-signature").addEventListener("click", () => {
     signedAt: new Date().toLocaleString("zh-HK", { hour12: false }),
     confirmStatus: "confirmed",
   };
+  persistSignatureConfirmation(confirmedData);
   renderSummary(document.getElementById("completed-summary"), confirmedData, true);
   renderSummary(document.getElementById("locked-summary"), confirmedData, true);
   setFlowPage(4);
@@ -368,7 +441,7 @@ document.getElementById("check-employee").addEventListener("click", () => {
   const orderId = formData.get("reset_order_id").trim();
   const employeeId = formData.get("reset_employee_id").trim();
   const result = document.getElementById("reset-result");
-  const employee = employees[employeeId];
+  const employee = sharedEmployee(orderId, employeeId) || employees[employeeId];
 
   if (!employee || employee.orderId !== orderId) {
     showNotice(result, "error", "未找到員工", "未找到該員工賬號，請聯絡管理員。");
@@ -379,6 +452,8 @@ document.getElementById("check-employee").addEventListener("click", () => {
   result.hidden = true;
   setResetPage(1);
 });
+
+renderSharedOrderOptions();
 
 document.getElementById("send-code").addEventListener("click", (event) => {
   event.currentTarget.textContent = "驗證碼已發送";
