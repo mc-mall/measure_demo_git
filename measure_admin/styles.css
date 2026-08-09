@@ -261,6 +261,11 @@ button {
 .employee-filters { display: grid; grid-template-columns: 160px 160px minmax(220px, 1fr) 100px; gap: 12px; align-items: end; }
 .employee-filters #employee-filter-id,
 .employee-filters #employee-filter-name { width: 160px; }
+.after-sale-filters { display: grid; grid-template-columns: minmax(260px, 1fr) 180px 100px; gap: 12px; align-items: end; }
+.after-sale-batch-bar { display: flex; align-items: end; justify-content: flex-end; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
+.after-sale-batch-bar > span { margin-right: auto; align-self: center; color: var(--muted); font-weight: 900; }
+.after-sale-batch-bar label { grid-template-columns: auto 150px; align-items: center; }
+.after-sale-batch-bar label span { font-size: 13px; }
 .signature-detail-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; }
 .signature-detail-head h3, .signature-detail-head p { margin: 0; }
 .signature-detail-head p { margin-top: 5px; color: var(--muted); }
@@ -268,6 +273,8 @@ button {
 .status-badge { display: inline-flex; align-items: center; min-height: 28px; border-radius: 999px; padding: 0 10px; font-size: 12px; font-weight: 900; }
 .status-badge.verified { background: #dcfce7; color: #166534; }
 .status-badge.unverified { background: #f1f5f9; color: #64748b; }
+.confirmed-quantity-list { display: grid; gap: 4px; min-width: 130px; }
+.confirmed-quantity-list span { color: var(--ink); white-space: nowrap; }
 .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .list-toolbar h3, .list-toolbar p { margin: 0; }
 .list-toolbar p { margin-top: 6px; }
@@ -358,6 +365,39 @@ dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
 .dialog-head p { margin-top: 4px; color: var(--muted); }
 .measurement-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
 textarea { width: 100%; border: 1px solid #cbd6e2; border-radius: 8px; padding: 10px; font: inherit; resize: vertical; }
+.after-sale-create-dialog { width: min(1120px, calc(100vw - 40px)); overflow-y: auto; }
+.after-sale-detail-dialog { width: min(960px, calc(100vw - 40px)); overflow-y: auto; }
+.after-sale-search-section { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #f8fafc; }
+.after-sale-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.after-sale-employee-results { display: grid; gap: 8px; margin-top: 10px; }
+.after-sale-employee-result { display: flex; min-height: 54px; align-items: flex-start; justify-content: space-between; gap: 18px; border: 1px solid var(--line); background: #fff; color: var(--ink); text-align: left; }
+.after-sale-employee-result span { color: var(--muted); font-weight: 700; }
+#after-sale-request-section { margin-top: 16px; }
+#after-sale-request-section h4 { margin: 16px 0 10px; }
+.after-sale-employee-card, .after-sale-detail-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; border: 1px solid #b7c8d9; border-radius: 8px; padding: 12px; background: #eef6fc; }
+.after-sale-employee-card span, .after-sale-employee-card strong, .after-sale-detail-meta span, .after-sale-detail-meta strong { display: block; }
+.after-sale-employee-card span, .after-sale-detail-meta span { color: var(--muted); font-size: 12px; font-weight: 800; }
+.after-sale-employee-card strong, .after-sale-detail-meta strong { margin-top: 4px; }
+.after-sale-garment-list { display: grid; gap: 9px; margin-bottom: 14px; }
+.after-sale-garment-row { display: grid; grid-template-columns: minmax(190px, 0.7fr) 120px minmax(300px, 1.5fr); gap: 12px; align-items: end; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.after-sale-garment-check { display: flex; align-items: center; gap: 9px; min-height: 64px; }
+.after-sale-garment-check input { width: 18px; height: 18px; min-height: auto; }
+.after-sale-garment-check span, .after-sale-garment-check strong { display: block; }
+.after-sale-garment-check span { color: var(--muted); font-size: 12px; }
+.after-sale-garment-check strong { margin-bottom: 3px; color: var(--ink); font-size: 15px; }
+.after-sale-garment-row textarea { min-height: 64px; }
+.after-sale-status { display: inline-flex; align-items: center; min-height: 28px; border-radius: 999px; padding: 0 9px; font-size: 12px; font-weight: 900; }
+.after-sale-status.status-registered { background: #e9f1f8; color: var(--blue-dark); }
+.after-sale-status.status-completed { background: #e8f7f1; color: var(--green); }
+.after-sale-status.status-returned { background: #eef1f4; color: #475569; }
+.after-sale-detail-meta { margin-bottom: 14px; }
+.after-sale-detail-dialog table { min-width: 680px; }
+.wrap-cell { min-width: 320px; white-space: normal; line-height: 1.55; }
+.after-sale-detail-remark { margin: 14px 0; border-radius: 8px; padding: 12px; background: #f8fafc; line-height: 1.6; }
+.after-sale-history { border-top: 1px solid var(--line); padding-top: 12px; }
+.after-sale-history h4 { margin: 0 0 8px; }
+.after-sale-history p { display: flex; gap: 18px; margin: 0; padding: 7px 0; border-bottom: 1px solid #edf1f5; }
+.after-sale-history p span { min-width: 170px; color: var(--muted); }
 .archive-dialog td:nth-child(6) { min-width: 320px; max-width: 520px; white-space: normal; line-height: 1.55; }
 .dialog-actions { justify-content: flex-end; margin-top: 16px; }
 .dialog-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -591,6 +631,7 @@ td {
   .quantity-rule-fields { grid-template-columns: 120px minmax(240px, 1fr) 120px 110px; gap: 8px; }
   .analysis-condition-row .analysis-min,
   .analysis-condition-row .analysis-max { width: 108px; }
+  .after-sale-garment-row { grid-template-columns: minmax(180px, 1fr) 110px minmax(240px, 1.5fr); }
 }
 
 @media (max-width: 760px) {
@@ -606,6 +647,11 @@ td {
   .employee-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .employee-filters #employee-filter-id,
   .employee-filters #employee-filter-name { width: 100%; }
+  .after-sale-filters, .after-sale-employee-card, .after-sale-detail-meta { grid-template-columns: 1fr; }
+  .after-sale-batch-bar { align-items: stretch; flex-direction: column; }
+  .after-sale-batch-bar > span { margin-right: 0; }
+  .after-sale-batch-bar label { grid-template-columns: 1fr; }
+  .after-sale-garment-row { grid-template-columns: 1fr; }
   .comparison-dialog,
   .analysis-results-dialog { width: calc(100vw - 10px); height: calc(100vh - 10px); max-height: calc(100vh - 10px); padding: 14px; }
   .analysis-steps { grid-template-columns: repeat(2, 1fr); }

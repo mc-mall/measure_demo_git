@@ -39,6 +39,7 @@
           <button type="button" data-view="tailors">裁縫師管理</button>
           <button type="button" data-view="orders">訂單管理</button>
           <button type="button" data-view="employees">員工管理</button>
+          <button type="button" data-view="after-sales">退換登記</button>
           <button type="button" data-view="records-male">男士量體記錄</button>
           <button type="button" data-view="records-female">女士量體記錄</button>
         </nav>
@@ -113,6 +114,25 @@
           </div>
           <div class="panel table-wrap"><table id="employee-table"></table></div>
           <div class="panel pagination" id="employee-pagination"></div>
+        </section>
+
+        <section class="view" id="view-after-sales">
+          <div class="panel list-toolbar">
+            <div><h3>退換登記</h3><p>登記員工到店提出的換貨或服裝修改需求；已發回後本輪結束，二次修改請重新登記。</p></div>
+            <button type="button" id="open-after-sale-create">新建售後</button>
+          </div>
+          <div class="panel after-sale-filters">
+            <label><span>員工 / 登記編號</span><input id="after-sale-filter-keyword" type="search" placeholder="員工編號、姓名或登記編號" /></label>
+            <label><span>需求狀態</span><select id="after-sale-filter-status"><option value="">全部狀態</option><option>已登記</option><option>已完成</option><option>已發回</option></select></label>
+            <button class="secondary" type="button" id="clear-after-sale-filters">清除篩選</button>
+          </div>
+          <div class="panel after-sale-batch-bar">
+            <span id="after-sale-selected-count">已選 0 項</span>
+            <label><span>批量修改狀態</span><select id="after-sale-batch-status"><option value="">請選擇</option><option>已登記</option><option>已完成</option><option>已發回</option></select></label>
+            <button type="button" id="apply-after-sale-status">確認修改</button>
+          </div>
+          <div class="panel table-wrap"><table id="after-sale-table"></table></div>
+          <div class="panel pagination" id="after-sale-pagination"></div>
         </section>
 
         <section class="view" id="view-records-male">
@@ -261,6 +281,28 @@
         <label><span>備註</span><textarea name="remark" rows="3"></textarea></label>
         <div class="dialog-actions"><button type="submit">保存修改</button></div>
       </form>
+    </dialog>
+    <dialog class="after-sale-create-dialog" id="after-sale-create-dialog">
+      <form id="after-sale-form">
+        <div class="dialog-head"><div><h3>新建售後</h3><p>先搜尋並確認員工，再勾選本輪涉及的服裝、數量和具體需求。</p></div><button class="secondary" type="button" data-close-after-sale-create>取消</button></div>
+        <section class="after-sale-search-section">
+          <label><span>員工編號</span><div class="after-sale-search-row"><input id="after-sale-employee-query" type="search" placeholder="輸入完整或部分員工編號" /><button type="button" id="search-after-sale-employee">搜尋員工</button></div></label>
+          <p class="form-error" id="after-sale-search-error" hidden></p>
+          <div class="after-sale-employee-results" id="after-sale-employee-results"></div>
+        </section>
+        <section id="after-sale-request-section" hidden>
+          <div class="after-sale-employee-card" id="after-sale-employee-card"></div>
+          <h4>勾選服裝並填寫需求</h4>
+          <div class="after-sale-garment-list" id="after-sale-garment-list"></div>
+          <label><span>本輪補充說明（選填）</span><textarea name="remark" rows="3" placeholder="例如：與員工確認方式、收衣情況等"></textarea></label>
+        </section>
+        <p class="form-error" id="after-sale-form-error" hidden></p>
+        <div class="dialog-actions"><button type="submit" id="save-after-sale" disabled>保存並設為已登記</button></div>
+      </form>
+    </dialog>
+    <dialog class="after-sale-detail-dialog" id="after-sale-detail-dialog">
+      <div class="dialog-head"><div><h3 id="after-sale-detail-title">售後詳情</h3><p id="after-sale-detail-subtitle"></p></div><button class="secondary" type="button" data-close-after-sale-detail>關閉</button></div>
+      <div id="after-sale-detail-content"></div>
     </dialog>
     <dialog class="comparison-dialog" id="comparison-dialog">
       <div class="dialog-head"><div><h3>量體對比分析</h3><p>按版本、服裝類型和字段差異條件查找需要調整的員工。</p></div><button class="secondary" type="button" data-close-comparison>關閉</button></div>
