@@ -172,6 +172,9 @@ button {
   color: var(--blue-dark);
 }
 
+.nav-section { margin: 10px 10px 0; color: #94a3b8; font-size: 11px; font-weight: 900; letter-spacing: 0.08em; }
+.nav .nav-child { padding-left: 26px; }
+
 .ghost {
   margin-top: auto;
 }
@@ -199,6 +202,10 @@ button {
   margin-top: 4px;
   font-size: 28px;
 }
+
+.current-user { display: grid; justify-items: end; gap: 3px; }
+.current-user strong { font-size: 14px; }
+.current-user span { color: var(--muted); font-size: 12px; font-weight: 800; }
 
 .view {
   display: none;
@@ -414,6 +421,18 @@ textarea { width: 100%; border: 1px solid #cbd6e2; border-radius: 8px; padding: 
 .dialog-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .employee-dialog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .dialog-tip { margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+.dialog-form-grid small { color: var(--muted); font-size: 12px; font-weight: 600; }
+.subaccount-dialog { width: min(760px, calc(100vw - 40px)); overflow-y: auto; }
+.permission-fieldset { display: grid; gap: 10px; margin: 16px 0 0; border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.permission-fieldset legend { padding: 0 6px; font-weight: 900; }
+.permission-fieldset > label { display: flex; align-items: center; gap: 9px; font-weight: 700; }
+.permission-fieldset input[type="checkbox"], .permission-fieldset input[type="radio"] { width: 18px; height: 18px; min-height: auto; }
+.status-pill { display: inline-flex; align-items: center; min-height: 26px; border-radius: 999px; padding: 0 9px; background: #e8f6f0; color: var(--green); font-size: 12px; font-weight: 900; }
+.status-pill.is-disabled { background: #f1f5f9; color: var(--muted); }
+.status-pill.is-pending { background: #fff7e6; color: #9a5b00; }
+.followup-note { margin-top: 14px; }
+.followup-meta { display: grid; gap: 4px; min-width: 180px; white-space: normal; }
+.followup-meta small { color: var(--muted); line-height: 1.45; }
 
 .order-dialog { width: min(960px, calc(100vw - 40px)); overflow-y: auto; }
 .order-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; }

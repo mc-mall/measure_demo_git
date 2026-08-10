@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260810-after-sale-list" />
+    <link rel="stylesheet" href="./styles.css?v=20260810-subaccounts" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -12,7 +12,7 @@
         <div class="brand-mark">MC</div>
         <h1>量體管理後台</h1>
         <label>
-          <span>管理員賬號</span>
+          <span>登入賬號</span>
           <input name="username" autocomplete="username" required />
         </label>
         <label>
@@ -20,7 +20,7 @@
           <input name="password" type="password" autocomplete="current-password" required />
         </label>
         <button type="submit">登入後台</button>
-        <p class="login-hint">原型模式：輸入任意非空賬號及密碼即可進入，資料僅保存在當前瀏覽器。</p>
+        <p class="login-hint">原型模式：主賬號仍可使用任意非空資料進入；已建立的子賬號須使用其指定密碼登入。</p>
         <p id="login-error" hidden></p>
       </form>
     </section>
@@ -36,12 +36,14 @@
         </div>
         <nav class="nav">
           <button class="is-active" type="button" data-view="dashboard">總覽</button>
-          <button type="button" data-view="tailors">裁縫師管理</button>
-          <button type="button" data-view="orders">訂單管理</button>
+          <button type="button" data-view="tailors" data-owner-only>裁縫師管理</button>
+          <button type="button" data-view="orders" data-owner-only>訂單管理</button>
           <button type="button" data-view="employees">員工管理</button>
-          <button type="button" data-view="after-sales">退換登記</button>
+          <button type="button" data-view="after-sales" data-owner-only>退換登記</button>
           <button type="button" data-view="records-male">男士量體記錄</button>
           <button type="button" data-view="records-female">女士量體記錄</button>
+          <span class="nav-section" data-owner-only>系統配置</span>
+          <button class="nav-child" type="button" data-view="subaccounts" data-owner-only>子賬號管理</button>
         </nav>
         <button class="ghost" type="button" id="logout">退出登入</button>
       </aside>
@@ -52,6 +54,7 @@
             <p>MC SPORTSWEAR &amp; UNIFORM</p>
             <h2 id="view-title">總覽</h2>
           </div>
+          <div class="current-user" id="current-user" hidden><strong id="current-user-name"></strong><span id="current-user-role"></span></div>
         </header>
 
         <section class="view is-active" id="view-dashboard">
@@ -99,11 +102,11 @@
               <p>新增、編輯員工，或批量導入員工及量體檔案。</p>
             </div>
             <div class="row-actions">
-              <button type="button" data-open-editor="employee">新增員工</button>
-              <button type="button" id="open-comparison-analysis">對比分析</button>
-              <button type="button" data-open-import="employees">導入員工信息</button>
-              <button class="secondary" type="button" data-open-import="measurements">導入量體檔案</button>
-              <button class="secondary" type="button" id="export-measurement-template">導出量體檔案模板</button>
+              <button type="button" data-open-editor="employee" data-owner-only>新增員工</button>
+              <button type="button" id="open-comparison-analysis" data-owner-only>對比分析</button>
+              <button type="button" data-open-import="employees" data-owner-only>導入員工信息</button>
+              <button class="secondary" type="button" data-open-import="measurements" data-owner-only>導入量體檔案</button>
+              <button class="secondary" type="button" id="export-measurement-template" data-owner-only>導出量體檔案模板</button>
             </div>
           </div>
           <div class="panel employee-filters">
@@ -169,6 +172,11 @@
           </div>
           <div class="panel table-wrap"><table id="female-record-table"></table></div>
           <div class="panel pagination" data-record-pagination="女"></div>
+        </section>
+
+        <section class="view" id="view-subaccounts">
+          <div class="panel list-toolbar"><div><h3>子賬號列表</h3><p>配置運營人員的登入信息、功能權限及賬號狀態。</p></div><button type="button" id="open-subaccount-editor">新增子賬號</button></div>
+          <div class="panel table-wrap"><table id="subaccount-table"></table></div>
         </section>
       </section>
     </main>
@@ -284,6 +292,37 @@
         <div class="dialog-actions"><button type="submit">保存修改</button></div>
       </form>
     </dialog>
+    <dialog class="entity-dialog subaccount-dialog" id="subaccount-dialog">
+      <form id="subaccount-form">
+        <div class="dialog-head"><div><h3 id="subaccount-dialog-title">新增子賬號</h3><p>配置子賬號登入信息及可使用的功能。</p></div><button class="secondary" type="button" data-close-subaccount>取消</button></div>
+        <input type="hidden" name="id" />
+        <div class="dialog-form-grid">
+          <label><span>姓名</span><input name="name" maxlength="30" required /></label>
+          <label><span>登入賬號</span><input name="username" maxlength="30" autocomplete="off" required /></label>
+          <label><span>登入密碼</span><input name="password" type="password" minlength="6" autocomplete="new-password" required /><small id="subaccount-password-tip">至少 6 位；原型僅保存哈希值</small></label>
+          <label><span>賬號狀態</span><select name="status"><option value="enabled">啟用</option><option value="disabled">停用</option></select></label>
+        </div>
+        <fieldset class="permission-fieldset"><legend>功能權限</legend>
+          <label><input type="checkbox" name="permission" value="employee_view" checked /><span>查看員工及量體檔案</span></label>
+          <label><input type="checkbox" name="permission" value="measurement_followup" checked /><span>更新量體事項跟進狀態與備註</span></label>
+          <label><input type="checkbox" name="permission" value="record_export" /><span>導出量體記錄</span></label>
+        </fieldset>
+        <p class="form-error" id="subaccount-form-error" hidden></p>
+        <div class="dialog-actions"><button type="submit">保存子賬號</button></div>
+      </form>
+    </dialog>
+    <dialog class="entity-dialog followup-dialog" id="followup-dialog">
+      <form id="followup-form">
+        <div class="dialog-head"><div><h3>量體事項跟進</h3><p id="followup-subtitle"></p></div><button class="secondary" type="button" data-close-followup>取消</button></div>
+        <input type="hidden" name="measurement_id" />
+        <div class="dialog-form-grid">
+          <label><span>跟進狀態</span><select name="followup_status" required><option value="待跟進">待跟進</option><option value="跟進中">跟進中</option><option value="已完成">已完成</option></select></label>
+          <label><span>下次跟進日期</span><input name="followup_due_date" type="date" /></label>
+        </div>
+        <label class="followup-note"><span>跟進備註</span><textarea name="followup_note" rows="4" maxlength="300" placeholder="記錄需核對的量體字段、溝通結果或下一步安排"></textarea></label>
+        <div class="dialog-actions"><button type="submit">保存跟進記錄</button></div>
+      </form>
+    </dialog>
     <dialog class="after-sale-create-dialog" id="after-sale-create-dialog">
       <form id="after-sale-form">
         <div class="dialog-head"><div><h3>新建售後</h3><p>先搜尋並確認員工，再勾選本輪涉及的服裝、數量和具體需求。</p></div><button class="secondary" type="button" data-close-after-sale-create>取消</button></div>
@@ -354,6 +393,6 @@
       <div class="analysis-result-toolbar"><label><span>搜尋員工</span><input id="analysis-result-search" type="search" placeholder="員工編號或姓名" /></label><button class="secondary" type="button" id="export-analysis-results">導出分析結果</button></div>
       <div class="table-wrap"><table id="analysis-result-table"></table></div>
     </dialog>
-    <script src="./app.js?v=20260810-after-sale-list"></script>
+    <script src="./app.js?v=20260810-subaccounts"></script>
   </body>
 </html>

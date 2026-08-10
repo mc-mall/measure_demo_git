@@ -14,6 +14,7 @@ const afterSalePagination = { page: 1, pageSize: 15 };
 const orderEditorState = { step: 1, garments: [], quantityRules: [] };
 const signatureDetailState = { orderId: "", page: 1, pageSize: 15 };
 const afterSaleFormState = { employeeId: "" };
+let currentUser = readSessionUser();
 
 const measurementLabels = {
   shirt_collar: "上衣領圍（襯衫）",
@@ -95,6 +96,7 @@ function seedStore() {
       { id: "E002", employee_id: "EMP002", name: "李國輝", gender: "男", height_cm: "176", weight_kg: "72", unit_name: "香港分部", order_id: "ORDER001" },
     ],
     measurements: [],
+    subaccounts: [],
     afterSales: [
       {
         id: "AS20260809001",
@@ -126,6 +128,50 @@ function seedStore() {
       },
     ],
   };
+}
+
+function ownerSession(username = "主賬號") {
+  return { id: "owner", name: "系統管理員", username, role: "owner", permissions: ["employee_view", "measurement_followup", "record_export"] };
+}
+
+function readSessionUser() {
+  const raw = localStorage.getItem(adminSessionKey);
+  if (!raw) return null;
+  if (raw === "1") return ownerSession();
+  try {
+    const value = JSON.parse(raw);
+    return value?.username ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function hashPassword(value) {
+  const bytes = new TextEncoder().encode(String(value));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function isOwner() {
+  return currentUser?.role === "owner";
+}
+
+function hasPermission(permission) {
+  return isOwner() || Boolean(currentUser?.permissions?.includes(permission));
+}
+
+function accessibleOrders(store = loadStore()) {
+  return store.orders;
+}
+
+function accessibleEmployees(store = loadStore()) {
+  const allowed = new Set(accessibleOrders(store).map((order) => order.order_id));
+  return store.employees.filter((employee) => allowed.has(employee.order_id));
+}
+
+function accessibleMeasurements(store = loadStore()) {
+  const allowed = new Set(accessibleOrders(store).map((order) => order.order_id));
+  return store.measurements.filter((record) => allowed.has(record.employee?.order_id));
 }
 
 function loadStore() {
@@ -200,9 +246,23 @@ function uid(prefix) {
 }
 
 function switchView(name) {
+  const targetButton = navButtons.find((button) => button.dataset.view === name);
+  if (!targetButton || targetButton.hidden) name = isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : "records-male");
   views.forEach((view) => view.classList.toggle("is-active", view.id === `view-${name}`));
   navButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.view === name));
   document.getElementById("view-title").textContent = navButtons.find((button) => button.dataset.view === name)?.textContent || "總覽";
+}
+
+function applyAccessPolicy() {
+  document.querySelectorAll("[data-owner-only]").forEach((element) => { element.hidden = !isOwner(); });
+  document.querySelector('[data-view="employees"]').hidden = !hasPermission("employee_view");
+  document.querySelectorAll("[data-export-records]").forEach((button) => { button.hidden = !hasPermission("record_export"); });
+  const userBox = document.getElementById("current-user");
+  userBox.hidden = !currentUser;
+  document.getElementById("current-user-name").textContent = currentUser?.name || currentUser?.username || "";
+  document.getElementById("current-user-role").textContent = isOwner() ? "主賬號 · 全部權限" : "子賬號 · 運營跟進";
+  const active = navButtons.find((button) => button.classList.contains("is-active"));
+  if (active?.hidden) switchView(hasPermission("employee_view") ? "employees" : "records-male");
 }
 
 function orderLabel(orderId) {
@@ -222,29 +282,30 @@ function renderTable(targetId, headers, rows, emptyText = "暫無資料") {
 function renderOrderSelect() {
   const selects = [document.getElementById("employee-order-select"), document.getElementById("import-order-select")].filter(Boolean);
   const store = loadStore();
-  const options = store.orders.map((order) => `<option value="${order.order_id}">${order.order_id} / ${order.company_name}</option>`).join("");
+  const orders = accessibleOrders(store);
+  const options = orders.map((order) => `<option value="${order.order_id}">${order.order_id} / ${order.company_name}</option>`).join("");
   selects.forEach((select) => {
     select.innerHTML = options;
   });
   document.querySelectorAll(".export-order-select").forEach((exportSelect) => {
     const current = exportSelect.value;
     exportSelect.innerHTML = `<option value="">全部訂單</option>${options}`;
-    exportSelect.value = store.orders.some((order) => order.order_id === current) ? current : "";
+    exportSelect.value = orders.some((order) => order.order_id === current) ? current : "";
   });
   const employeeFilterOrder = document.getElementById("employee-filter-order");
   if (employeeFilterOrder) {
     const current = employeeFilterOrder.value;
     employeeFilterOrder.innerHTML = `<option value="">全部訂單</option>${options}`;
-    employeeFilterOrder.value = store.orders.some((order) => order.order_id === current) ? current : "";
+    employeeFilterOrder.value = orders.some((order) => order.order_id === current) ? current : "";
   }
 }
 
 function renderMetrics() {
   const store = loadStore();
-  document.getElementById("metric-tailors").textContent = store.tailors.length;
-  document.getElementById("metric-orders").textContent = store.orders.length;
-  document.getElementById("metric-employees").textContent = store.employees.length;
-  document.getElementById("metric-records").textContent = store.measurements.length;
+  document.getElementById("metric-tailors").textContent = isOwner() ? store.tailors.length : "—";
+  document.getElementById("metric-orders").textContent = accessibleOrders(store).length;
+  document.getElementById("metric-employees").textContent = accessibleEmployees(store).length;
+  document.getElementById("metric-records").textContent = accessibleMeasurements(store).length;
 }
 
 function renderTailors() {
@@ -356,7 +417,7 @@ function renderEmployees() {
   const employeeId = document.getElementById("employee-filter-id").value.trim().toLowerCase();
   const employeeName = document.getElementById("employee-filter-name").value.trim().toLowerCase();
   const orderId = document.getElementById("employee-filter-order").value;
-  const employees = loadStore().employees.filter((item) => {
+  const employees = accessibleEmployees().filter((item) => {
     if (employeeId && !String(item.employee_id || "").toLowerCase().includes(employeeId)) return false;
     if (employeeName && !String(item.name || "").toLowerCase().includes(employeeName)) return false;
     if (orderId && item.order_id !== orderId) return false;
@@ -368,7 +429,7 @@ function renderEmployees() {
   const rows = employees.slice(start, start + employeePagination.pageSize).map((item) => `
     <tr>
       <td>${item.employee_id}</td><td>${item.name}</td><td>${item.gender}</td><td>${item.height_cm || "-"}</td><td>${item.weight_kg || "-"}</td><td>${item.unit_name}</td><td>${orderLabel(item.order_id)}</td><td>${employeeRecords(item).length}</td>
-      <td><div class="row-actions"><button type="button" data-open-archive="${item.id}">量體檔案</button><button type="button" data-edit-employee="${item.id}">編輯</button><button class="danger" type="button" data-delete-employee="${item.id}">刪除</button></div></td>
+      <td><div class="row-actions"><button type="button" data-open-archive="${item.id}">量體檔案</button>${isOwner() ? `<button type="button" data-edit-employee="${item.id}">編輯</button><button class="danger" type="button" data-delete-employee="${item.id}">刪除</button>` : ""}</div></td>
     </tr>
   `);
   renderTable("employee-table", ["員工編號", "姓名", "性別", "身高", "體重", "單位名字", "歸屬訂單 / 公司", "量體版本", "操作"], rows);
@@ -381,7 +442,7 @@ function renderEmployees() {
 }
 
 function employeeRecords(employee) {
-  return loadStore().measurements
+  return accessibleMeasurements()
     .filter((record) => !record.archive_removed_at && record.employee?.order_id === employee.order_id && record.employee?.employee_id === employee.employee_id)
     .sort((a, b) => Number(b.version || 0) - Number(a.version || 0));
 }
@@ -420,8 +481,8 @@ function openArchive(employeeId) {
   document.getElementById("archive-title").textContent = `${employee.name} · 量體檔案`;
   document.getElementById("archive-subtitle").textContent = `${employee.employee_id}｜${orderLabel(employee.order_id)}｜共 ${employeeRecords(employee).length} 個版本`;
   const records = employeeRecords(employee);
-  const rows = records.map((record) => `<tr><td>${versionLabel(record)}</td><td>${record.created_at || record.measured_at || "-"}</td><td>${recordStage(record)}</td><td>${record.tailor_name || "-"}</td><td>${recordRemark(record) || "-"}</td><td>${recordDifference(record, records)}</td><td><div class="row-actions"><button type="button" data-edit-record="${record.measurement_id}">修改</button><button class="danger" type="button" data-delete-record="${record.measurement_id}">刪除檔案版本</button></div></td></tr>`);
-  renderTable("archive-table", ["版本", "創建時間", "數據階段", "裁縫師", "備註", "較上一版差異", "操作"], rows, "該員工暫無量體版本");
+  const rows = records.map((record) => `<tr><td>${versionLabel(record)}</td><td>${record.created_at || record.measured_at || "-"}</td><td>${recordStage(record)}</td><td>${record.tailor_name || "-"}</td><td>${recordRemark(record) || "-"}</td><td>${followupCell(record)}</td><td>${recordDifference(record, records)}</td><td><div class="row-actions">${hasPermission("measurement_followup") ? `<button type="button" data-followup-record="${record.measurement_id}">跟進</button>` : ""}${isOwner() ? `<button type="button" data-edit-record="${record.measurement_id}">修改</button><button class="danger" type="button" data-delete-record="${record.measurement_id}">刪除檔案版本</button>` : ""}</div></td></tr>`);
+  renderTable("archive-table", ["版本", "創建時間", "數據階段", "裁縫師", "備註", "跟進事項", "較上一版差異", "操作"], rows, "該員工暫無量體版本");
   const dialog = document.getElementById("archive-dialog");
   dialog.dataset.employeeId = employeeId;
   if (!dialog.open) dialog.showModal();
@@ -446,6 +507,13 @@ function measurementSummary(record) {
 
 function recordRemark(record) {
   return record.final_remark || record.remark || "";
+}
+
+function followupCell(record) {
+  const status = record.followup_status || "未標記";
+  const statusClass = status === "已完成" ? "" : (status === "未標記" ? "is-disabled" : "is-pending");
+  const details = [record.followup_owner, record.followup_due_date ? `下次：${record.followup_due_date}` : "", record.followup_note].filter(Boolean);
+  return `<div class="followup-meta"><span class="status-pill ${statusClass}">${escapeHtml(status)}</span>${details.map((item) => `<small>${escapeHtml(item)}</small>`).join("")}</div>`;
 }
 
 function employeeAfterSaleGarments(employee) {
@@ -622,7 +690,7 @@ function renderRecords(gender) {
   const view = document.getElementById(gender === "男" ? "view-records-male" : "view-records-female");
   const nameQuery = view.querySelector(".record-name-search").value.trim().toLowerCase();
   const employeeQuery = view.querySelector(".record-employee-search").value.trim().toLowerCase();
-  const records = loadStore().measurements.filter((record) => {
+  const records = accessibleMeasurements().filter((record) => {
     if (record.employee?.gender !== gender) return false;
     const name = String(record.employee?.customer_name || "").toLowerCase();
     const employeeId = String(record.employee?.employee_id || "").toLowerCase();
@@ -636,10 +704,10 @@ function renderRecords(gender) {
     .slice(start, start + paging.pageSize)
     .map((record) => `
       <tr>
-        <td>${versionLabel(record)}</td><td>${record.measurement_id}</td><td>${record.created_at || record.measured_at || "-"}</td><td>${record.tailor_name || "-"}</td><td>${record.employee?.employee_id || "-"}</td><td>${record.employee?.customer_name || "-"}</td><td>${orderLabel(record.employee?.order_id)}</td><td>${record.body_notes?.join("、") || "-"}</td><td>${measurementSummary(record)}</td>
+        <td>${versionLabel(record)}</td><td>${record.measurement_id}</td><td>${record.created_at || record.measured_at || "-"}</td><td>${record.tailor_name || "-"}</td><td>${record.employee?.employee_id || "-"}</td><td>${record.employee?.customer_name || "-"}</td><td>${orderLabel(record.employee?.order_id)}</td><td>${record.body_notes?.join("、") || "-"}</td><td>${measurementSummary(record)}</td><td>${followupCell(record)}</td><td>${hasPermission("measurement_followup") ? `<button type="button" data-followup-record="${record.measurement_id}">跟進</button>` : "-"}</td>
       </tr>
     `);
-  renderTable(gender === "男" ? "male-record-table" : "female-record-table", ["版本", "記錄ID", "創建時間", "裁縫師", "員工編號", "姓名", "訂單 / 公司", "特殊體型", "量體字段"], rows, "暫無量體記錄");
+  renderTable(gender === "男" ? "male-record-table" : "female-record-table", ["版本", "記錄ID", "創建時間", "裁縫師", "員工編號", "姓名", "訂單 / 公司", "特殊體型", "量體字段", "跟進事項", "操作"], rows, "暫無量體記錄");
   const target = document.querySelector(`[data-record-pagination="${gender}"]`);
   target.innerHTML = `
     <span>共 ${records.length} 條，第 ${paging.page} / ${totalPages} 頁</span>
@@ -649,16 +717,56 @@ function renderRecords(gender) {
     </div>`;
 }
 
+function renderSubaccounts() {
+  const accounts = loadStore().subaccounts || [];
+  const rows = accounts.map((account) => `<tr><td>${escapeHtml(account.name)}</td><td>${escapeHtml(account.username)}</td><td><span class="status-pill ${account.status === "enabled" ? "" : "is-disabled"}">${account.status === "enabled" ? "已啟用" : "已停用"}</span></td><td>${escapeHtml(account.last_login_at || "從未登入")}</td><td><div class="row-actions"><button type="button" data-edit-subaccount="${account.id}">編輯</button><button class="secondary" type="button" data-toggle-subaccount="${account.id}">${account.status === "enabled" ? "停用" : "啟用"}</button><button class="danger" type="button" data-delete-subaccount="${account.id}">刪除</button></div></td></tr>`);
+  renderTable("subaccount-table", ["姓名", "登入賬號", "狀態", "最近登入", "操作"], rows, "暫無子賬號");
+}
+
+function openSubaccountEditor(account = null) {
+  const form = document.getElementById("subaccount-form");
+  form.reset();
+  form.elements.id.value = account?.id || "";
+  form.elements.name.value = account?.name || "";
+  form.elements.username.value = account?.username || "";
+  form.elements.password.value = "";
+  form.elements.password.required = !account;
+  form.elements.status.value = account?.status || "enabled";
+  [...form.querySelectorAll('input[name="permission"]')].forEach((input) => { input.checked = account ? (account.permissions || []).includes(input.value) : ["employee_view", "measurement_followup"].includes(input.value); });
+  document.getElementById("subaccount-dialog-title").textContent = account ? "編輯子賬號" : "新增子賬號";
+  document.getElementById("subaccount-password-tip").textContent = account ? "留空表示不修改密碼" : "至少 6 位；原型僅保存哈希值";
+  document.getElementById("subaccount-form-error").hidden = true;
+  document.getElementById("subaccount-dialog").showModal();
+}
+
+function openFollowupEditor(measurementId) {
+  const record = accessibleMeasurements().find((item) => item.measurement_id === measurementId);
+  if (!record || !hasPermission("measurement_followup")) return;
+  const form = document.getElementById("followup-form");
+  form.elements.measurement_id.value = measurementId;
+  form.elements.followup_status.value = record.followup_status || "待跟進";
+  form.elements.followup_due_date.value = record.followup_due_date || "";
+  form.elements.followup_note.value = record.followup_note || "";
+  document.getElementById("followup-subtitle").textContent = `${record.employee?.customer_name || "-"}｜${record.employee?.employee_id || "-"}｜${versionLabel(record)}`;
+  document.getElementById("followup-dialog").showModal();
+}
+
 function renderAll() {
   renderOrderSelect();
   renderMetrics();
-  renderTailors();
-  renderOrders();
   renderEmployees();
-  renderAfterSales();
   renderRecords("男");
   renderRecords("女");
-  renderSignatureDetails();
+  if (isOwner()) {
+    renderTailors();
+    renderOrders();
+    renderAfterSales();
+    renderSignatureDetails();
+    renderSubaccounts();
+  } else {
+    ["tailor-table", "order-table", "after-sale-table", "signature-table", "subaccount-table"].forEach((id) => { document.getElementById(id).innerHTML = ""; });
+  }
+  applyAccessPolicy();
 }
 
 function upsert(collection, item) {
@@ -1443,7 +1551,7 @@ async function exportRecords(forcedGender = "", panel = document) {
     }
     return;
   }
-  const records = loadStore().measurements.filter((record) => recordMatchesExportFilters(record, filters));
+  const records = accessibleMeasurements().filter((record) => recordMatchesExportFilters(record, filters));
   const headers = ["記錄ID", "性別", "量體時間", "裁縫師", "訂單號", "公司", "員工編號", "姓名", ...Object.values(measurementLabels), "備註"];
   const keys = Object.keys(measurementLabels);
   const lines = [
@@ -1467,18 +1575,41 @@ async function exportRecords(forcedGender = "", panel = document) {
   downloadCsvBlob(new Blob([`\ufeff${lines.join("\n")}`], { type: "text/csv;charset=utf-8" }), exportFilename(filters));
 }
 
-document.getElementById("login-form").addEventListener("submit", (event) => {
+document.getElementById("login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  localStorage.setItem(adminSessionKey, "1");
-  document.getElementById("login-error").hidden = true;
+  const data = Object.fromEntries(new FormData(event.currentTarget));
+  const store = loadStore();
+  const account = (store.subaccounts || []).find((item) => item.username.toLowerCase() === data.username.trim().toLowerCase());
+  const error = document.getElementById("login-error");
+  if (account) {
+    if (account.status !== "enabled") {
+      error.textContent = "賬號已停用，請聯絡系統管理員。";
+      error.hidden = false;
+      return;
+    }
+    if (await hashPassword(data.password) !== account.password_hash) {
+      error.textContent = "登入賬號或密碼不正確。";
+      error.hidden = false;
+      return;
+    }
+    account.last_login_at = nowText();
+    saveStore(store);
+    currentUser = { id: account.id, name: account.name, username: account.username, role: "subaccount", permissions: [...(account.permissions || [])] };
+  } else {
+    currentUser = ownerSession(data.username.trim());
+  }
+  localStorage.setItem(adminSessionKey, JSON.stringify(currentUser));
+  error.hidden = true;
   document.getElementById("login-view").hidden = true;
   document.getElementById("admin-shell").hidden = false;
   event.currentTarget.reset();
+  switchView(isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : "records-male"));
   renderAll();
 });
 
 document.getElementById("logout").addEventListener("click", () => {
   localStorage.removeItem(adminSessionKey);
+  currentUser = null;
   document.getElementById("login-view").hidden = false;
   document.getElementById("admin-shell").hidden = true;
 });
@@ -1687,6 +1818,56 @@ document.getElementById("employee-form").addEventListener("submit", (event) => {
 document.getElementById("import-employees").addEventListener("click", importEmployees);
 document.getElementById("import-measurements").addEventListener("click", importMeasurements);
 document.getElementById("export-measurement-template").addEventListener("click", exportMeasurementTemplate);
+document.getElementById("open-subaccount-editor").addEventListener("click", () => openSubaccountEditor());
+document.getElementById("subaccount-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const store = loadStore();
+  const existing = (store.subaccounts || []).find((account) => account.id === data.get("id"));
+  const error = document.getElementById("subaccount-form-error");
+  const username = String(data.get("username") || "").trim();
+  const password = String(data.get("password") || "");
+  const duplicate = (store.subaccounts || []).some((account) => account.id !== data.get("id") && account.username.toLowerCase() === username.toLowerCase());
+  if (duplicate || (!existing && password.length < 6) || (existing && password && password.length < 6)) {
+    error.textContent = duplicate ? "登入賬號已存在，請更換。" : "登入密碼至少需要 6 位。";
+    error.hidden = false;
+    return;
+  }
+  const account = {
+    id: existing?.id || uid("A"),
+    name: String(data.get("name") || "").trim(),
+    username,
+    password_hash: password ? await hashPassword(password) : existing?.password_hash,
+    status: data.get("status"),
+    permissions: data.getAll("permission"),
+    last_login_at: existing?.last_login_at || "",
+  };
+  store.subaccounts ||= [];
+  if (existing) store.subaccounts[store.subaccounts.findIndex((item) => item.id === existing.id)] = account;
+  else store.subaccounts.push(account);
+  saveStore(store);
+  document.getElementById("subaccount-dialog").close();
+  renderAll();
+  showToast("子賬號已保存，可使用新賬號登入。");
+});
+document.getElementById("followup-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget));
+  const store = loadStore();
+  const record = store.measurements.find((item) => item.measurement_id === data.measurement_id);
+  if (!record || !accessibleMeasurements(store).some((item) => item.measurement_id === data.measurement_id) || !hasPermission("measurement_followup")) return;
+  record.followup_status = data.followup_status;
+  record.followup_due_date = data.followup_due_date;
+  record.followup_note = String(data.followup_note || "").trim();
+  record.followup_owner = currentUser?.name || currentUser?.username || "管理員";
+  record.followup_updated_at = nowText();
+  saveStore(store);
+  document.getElementById("followup-dialog").close();
+  renderAll();
+  if (document.getElementById("archive-dialog").open) openArchive(document.getElementById("archive-dialog").dataset.employeeId);
+  showToast("量體事項跟進記錄已更新。");
+});
 document.getElementById("open-comparison-analysis").addEventListener("click", () => {
   resetComparisonWizard();
   document.getElementById("comparison-dialog").showModal();
@@ -1782,6 +1963,22 @@ document.body.addEventListener("click", (event) => {
   if (button.dataset.editEmployee) openEntityDialog("employee", store.employees.find((item) => item.id === button.dataset.editEmployee));
   if (button.dataset.deleteEmployee) removeItem("employees", button.dataset.deleteEmployee);
   if (button.dataset.openArchive) openArchive(button.dataset.openArchive);
+  if (button.dataset.followupRecord) openFollowupEditor(button.dataset.followupRecord);
+  if (button.dataset.editSubaccount) openSubaccountEditor((store.subaccounts || []).find((account) => account.id === button.dataset.editSubaccount));
+  if (button.dataset.toggleSubaccount) {
+    const account = (store.subaccounts || []).find((item) => item.id === button.dataset.toggleSubaccount);
+    if (account) account.status = account.status === "enabled" ? "disabled" : "enabled";
+    saveStore(store);
+    renderAll();
+    showToast(`子賬號已${account?.status === "enabled" ? "啟用" : "停用"}。`);
+  }
+  if (button.dataset.deleteSubaccount) {
+    if (!window.confirm("確定刪除此子賬號？刪除後將無法再登入。")) return;
+    store.subaccounts = (store.subaccounts || []).filter((account) => account.id !== button.dataset.deleteSubaccount);
+    saveStore(store);
+    renderAll();
+    showToast("子賬號已刪除。");
+  }
   if (button.dataset.analysisOpenArchive) {
     document.getElementById("analysis-results-dialog").close();
     openArchive(button.dataset.analysisOpenArchive);
@@ -1800,6 +1997,8 @@ document.body.addEventListener("click", (event) => {
   }
   if (button.hasAttribute("data-close-archive")) document.getElementById("archive-dialog").close();
   if (button.hasAttribute("data-close-record-edit")) document.getElementById("record-edit-dialog").close();
+  if (button.hasAttribute("data-close-subaccount")) document.getElementById("subaccount-dialog").close();
+  if (button.hasAttribute("data-close-followup")) document.getElementById("followup-dialog").close();
   if (button.hasAttribute("data-close-import")) button.closest("dialog").close();
   if (button.hasAttribute("data-close-entity")) button.closest("dialog").close();
   if (button.hasAttribute("data-close-comparison")) document.getElementById("comparison-dialog").close();
@@ -1829,9 +2028,10 @@ document.body.addEventListener("click", (event) => {
 });
 
 loadStore();
-if (localStorage.getItem(adminSessionKey) === "1") {
+if (currentUser) {
   document.getElementById("login-view").hidden = true;
   document.getElementById("admin-shell").hidden = false;
+  switchView(isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : "records-male"));
 }
 (async () => {
   try {
