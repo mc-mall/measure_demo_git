@@ -97,7 +97,7 @@ button {
   top: 0;
   z-index: 5;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
   padding: 10px;
   background: rgba(248, 250, 252, 0.94);
@@ -379,6 +379,173 @@ button {
   gap: 12px;
 }
 
+.client-profile-card,
+.client-order-card,
+.after-sale-record-card,
+.after-sale-garment-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.client-profile-card {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.client-profile-card span,
+.client-profile-card strong {
+  display: block;
+}
+
+.client-profile-card span,
+.client-order-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.client-profile-card strong {
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.client-order-cards,
+.after-sale-records,
+.after-sale-garment-list,
+.record-item-list {
+  display: grid;
+  gap: 8px;
+}
+
+.client-order-card,
+.after-sale-record-card,
+.after-sale-garment-row {
+  padding: 11px 12px;
+}
+
+.client-order-card strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--blue-dark);
+  font-size: 16px;
+}
+
+.client-order-card p,
+.after-sale-record-card p {
+  margin: 3px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.subsection-head {
+  margin: 18px 0 9px;
+}
+
+.subsection-head h2 {
+  margin: 3px 0 0;
+  font-size: 17px;
+}
+
+.record-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.after-sale-status {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.after-sale-status.status-registered { background: #fff6dd; color: var(--amber); }
+.after-sale-status.status-processed { background: #e9f2fa; color: var(--blue-dark); }
+.after-sale-status.status-completed { background: #edf9f4; color: var(--green); }
+
+.record-item-list div {
+  border-top: 1px solid #e7edf3;
+  padding-top: 7px;
+  display: grid;
+  gap: 4px;
+}
+
+.record-item-list span,
+.record-remark {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.after-sale-garment-row {
+  display: grid;
+  gap: 8px;
+}
+
+.after-sale-garment-check {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 9px;
+}
+
+.after-sale-garment-check input {
+  width: 18px;
+  height: 18px;
+}
+
+.after-sale-garment-check span,
+.after-sale-garment-check strong {
+  display: block;
+}
+
+.after-sale-garment-check span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.after-sale-garment-check strong {
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+#view-orders {
+  padding: 18px 16px 26px;
+}
+
+#view-orders .section-head {
+  margin-bottom: 12px;
+}
+
+#view-orders .section-head h1 {
+  margin: 4px 0 5px;
+  font-size: 22px;
+}
+
+#client-after-sale-form {
+  gap: 10px;
+}
+
+#client-after-sale-form .field {
+  gap: 6px;
+}
+
+#client-after-sale-form textarea {
+  min-height: 72px;
+  padding: 10px 12px;
+}
+
+#view-orders .primary-action,
+#view-orders .secondary-action {
+  min-height: 42px;
+}
+
 .sku-summary {
   padding: 13px 14px;
 }
@@ -628,6 +795,7 @@ button {
 
 @media (max-width: 390px) {
   .tabs {
+    grid-template-columns: repeat(3, 1fr);
     gap: 5px;
     padding-left: 8px;
     padding-right: 8px;
@@ -642,7 +810,8 @@ button {
   }
 
   .readonly-grid,
-  .info-measure-fields {
+  .info-measure-fields,
+  .client-profile-card {
     grid-template-columns: 1fr;
   }
 

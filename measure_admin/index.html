@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260810-after-sale-list" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -118,17 +118,19 @@
 
         <section class="view" id="view-after-sales">
           <div class="panel list-toolbar">
-            <div><h3>退換登記</h3><p>登記員工到店提出的換貨或服裝修改需求；已發回後本輪結束，二次修改請重新登記。</p></div>
+            <div><h3>退換登記</h3><p>登記員工提出的換貨或服裝修改需求；已完成後本輪結束，二次修改請重新登記。</p></div>
             <button type="button" id="open-after-sale-create">新建售後</button>
           </div>
           <div class="panel after-sale-filters">
             <label><span>員工 / 登記編號</span><input id="after-sale-filter-keyword" type="search" placeholder="員工編號、姓名或登記編號" /></label>
-            <label><span>需求狀態</span><select id="after-sale-filter-status"><option value="">全部狀態</option><option>已登記</option><option>已完成</option><option>已發回</option></select></label>
+            <label><span>單位名稱</span><input id="after-sale-filter-unit" type="search" placeholder="搜尋單位名稱" /></label>
+            <div class="after-sale-date-filter"><span>登記時間</span><div><input id="after-sale-filter-start" type="date" aria-label="登記開始日期" /><em>至</em><input id="after-sale-filter-end" type="date" aria-label="登記結束日期" /></div></div>
+            <label><span>需求狀態</span><select id="after-sale-filter-status"><option value="">全部狀態</option><option>已登記</option><option>已處理</option><option>已完成</option></select></label>
             <button class="secondary" type="button" id="clear-after-sale-filters">清除篩選</button>
           </div>
           <div class="panel after-sale-batch-bar">
             <span id="after-sale-selected-count">已選 0 項</span>
-            <label><span>批量修改狀態</span><select id="after-sale-batch-status"><option value="">請選擇</option><option>已登記</option><option>已完成</option><option>已發回</option></select></label>
+            <label><span>批量修改狀態</span><select id="after-sale-batch-status"><option value="">請選擇</option><option>已登記</option><option>已處理</option><option>已完成</option></select></label>
             <button type="button" id="apply-after-sale-status">確認修改</button>
           </div>
           <div class="panel table-wrap"><table id="after-sale-table"></table></div>
@@ -352,6 +354,6 @@
       <div class="analysis-result-toolbar"><label><span>搜尋員工</span><input id="analysis-result-search" type="search" placeholder="員工編號或姓名" /></label><button class="secondary" type="button" id="export-analysis-results">導出分析結果</button></div>
       <div class="table-wrap"><table id="analysis-result-table"></table></div>
     </dialog>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=20260810-after-sale-list"></script>
   </body>
 </html>

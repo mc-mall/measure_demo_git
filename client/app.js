@@ -9,7 +9,22 @@ let currentEmployee = null;
 let resetCodeSent = false;
 let signatureDirty = false;
 let confirmedData = null;
+let selectedAfterSaleOrderId = "";
 const sharedAdminStoreKey = "mc-measure-admin-prototype-state";
+
+const fallbackOrders = [{
+  order_id: "ORDER001",
+  company_name: "澳設集團 2026 制服",
+  garments: [
+    { id: "G001", gender: "男", name: "襯衫", default_quantity: 2 },
+    { id: "G002", gender: "男", name: "西褲", default_quantity: 2 },
+    { id: "G003", gender: "女", name: "襯衫", default_quantity: 2 },
+    { id: "G004", gender: "女", name: "半裙", default_quantity: 2 },
+    { id: "G005", gender: "男", name: "毛衣", default_quantity: 2 },
+    { id: "G006", gender: "女", name: "連衣裙", default_quantity: 2 },
+    { id: "G007", gender: "女", name: "西褲", default_quantity: 2 },
+  ],
+}];
 
 const employees = {
   EMP001: {
@@ -45,7 +60,20 @@ function maskPhone(phone) {
 
 function loadSharedAdminStore() {
   try {
-    return JSON.parse(localStorage.getItem(sharedAdminStoreKey) || "null");
+    const store = JSON.parse(localStorage.getItem(sharedAdminStoreKey) || "null");
+    if (store && store.afterSaleStatusVersion !== 2) {
+      store.afterSales = (store.afterSales || []).map((record) => ({
+        ...record,
+        status: record.status === "已完成" ? "已處理" : record.status === "已發回" ? "已完成" : record.status,
+        status_history: (record.status_history || []).map((entry) => ({
+          ...entry,
+          status: entry.status === "已完成" ? "已處理" : entry.status === "已發回" ? "已完成" : entry.status,
+        })),
+      }));
+      store.afterSaleStatusVersion = 2;
+      localStorage.setItem(sharedAdminStoreKey, JSON.stringify(store));
+    }
+    return store;
   } catch {
     return null;
   }
@@ -69,11 +97,102 @@ function sharedEmployee(orderId, employeeId) {
 }
 
 function renderSharedOrderOptions() {
-  const orders = loadSharedAdminStore()?.orders;
-  if (!Array.isArray(orders) || !orders.length) return;
+  const sharedOrders = loadSharedAdminStore()?.orders;
+  const orders = Array.isArray(sharedOrders) && sharedOrders.length ? sharedOrders : fallbackOrders;
   const options = orders.map((order) => `<option value="${escapeClientHtml(order.order_id)}">${escapeClientHtml(order.order_id)} - ${escapeClientHtml(order.company_name)}</option>`).join("");
   document.querySelector('[name="order_id"]').innerHTML = options;
   document.querySelector('[name="reset_order_id"]').innerHTML = options;
+}
+
+function nowClientText() {
+  return new Date().toLocaleString("zh-CN", { hour12: false }).replaceAll("/", "-");
+}
+
+function clientUid(prefix) {
+  return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+}
+
+function getClientOrders() {
+  const sharedOrders = loadSharedAdminStore()?.orders;
+  return Array.isArray(sharedOrders) && sharedOrders.length ? sharedOrders : fallbackOrders;
+}
+
+function getEmployeeOrders() {
+  if (!currentEmployee) return [];
+  return getClientOrders().filter((order) => order.order_id === currentEmployee.orderId);
+}
+
+function getEmployeeAfterSaleRecords() {
+  const records = loadSharedAdminStore()?.afterSales;
+  if (!currentEmployee || !Array.isArray(records)) return [];
+  return records
+    .filter((record) => record.employee_id === currentEmployee.employeeId)
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+}
+
+function afterSaleStatusClass(status) {
+  if (status === "已處理") return "processed";
+  if (status === "已完成") return "completed";
+  return "registered";
+}
+
+function renderClientOrders() {
+  const profile = document.getElementById("client-profile-card");
+  const cards = document.getElementById("client-order-cards");
+  const records = document.getElementById("client-after-sale-records");
+  if (!currentEmployee) {
+    profile.innerHTML = '<div class="empty-state"><strong>請先登入</strong><span>登入後即可查看訂單及提交退換申請。</span></div>';
+    cards.innerHTML = '<button class="primary-action" type="button" data-jump="login">前往登入</button>';
+    records.innerHTML = "";
+    return;
+  }
+
+  profile.innerHTML = `<div><span>當前員工</span><strong>${escapeClientHtml(currentEmployee.employeeId)} · ${escapeClientHtml(currentEmployee.name)}</strong></div><div><span>性別 / 分部</span><strong>${escapeClientHtml(currentEmployee.gender)} / ${escapeClientHtml(currentEmployee.department)}</strong></div>`;
+  const employeeOrders = getEmployeeOrders();
+  cards.innerHTML = employeeOrders.length ? employeeOrders.map((order) => `
+    <article class="client-order-card">
+      <div><span>訂單 / 項目</span><strong>${escapeClientHtml(order.order_id)}</strong><p>${escapeClientHtml(order.company_name)}</p></div>
+      <div class="button-row">
+        <button class="secondary-action" type="button" data-open-confirmation>服裝確認</button>
+        <button class="primary-action" type="button" data-open-client-after-sale="${escapeClientHtml(order.order_id)}">退換登記</button>
+      </div>
+    </article>`).join("") : '<div class="empty-state"><strong>暫無可選訂單</strong><span>請聯絡工作人員核對員工的歸屬訂單。</span></div>';
+
+  const employeeRecords = getEmployeeAfterSaleRecords();
+  records.innerHTML = employeeRecords.length ? employeeRecords.map((record) => `
+    <article class="after-sale-record-card">
+      <div class="record-card-head"><strong>${escapeClientHtml(record.id)}</strong><span class="after-sale-status status-${afterSaleStatusClass(record.status)}">${escapeClientHtml(record.status)}</span></div>
+      <p>${escapeClientHtml(record.order_id)} · ${escapeClientHtml(record.created_at)}</p>
+      <div class="record-item-list">${(record.items || []).map((item) => `<div><strong>${escapeClientHtml(item.garment_name)}</strong><span>${escapeClientHtml(item.demand)}</span></div>`).join("")}</div>
+      ${record.remark ? `<p class="record-remark">補充說明：${escapeClientHtml(record.remark)}</p>` : ""}
+    </article>`).join("") : '<div class="empty-state"><strong>暫無退換申請</strong><span>從上方訂單點擊「退換登記」即可自主提交。</span></div>';
+}
+
+function openClientAfterSale(orderId) {
+  const order = getEmployeeOrders().find((item) => item.order_id === orderId);
+  if (!currentEmployee || !order) return;
+  selectedAfterSaleOrderId = orderId;
+  document.getElementById("client-after-sale-order-card").innerHTML = `<div><span>申請員工</span><strong>${escapeClientHtml(currentEmployee.employeeId)} · ${escapeClientHtml(currentEmployee.name)}</strong></div><div><span>選中訂單</span><strong>${escapeClientHtml(order.order_id)} · ${escapeClientHtml(order.company_name)}</strong></div>`;
+  const garments = (order.garments || []).filter((garment) => garment.gender === currentEmployee.gender);
+  document.getElementById("client-after-sale-garments").innerHTML = garments.length ? garments.map((garment) => {
+    return `<div class="after-sale-garment-row" data-client-after-sale-garment="${escapeClientHtml(garment.id || garment.name)}" data-garment-name="${escapeClientHtml(garment.name)}">
+      <label class="after-sale-garment-check"><input type="checkbox" /><span><strong>${escapeClientHtml(garment.name)}</strong>勾選後填寫需求</span></label>
+      <label class="field"><span>換貨 / 修改需求</span><textarea class="client-after-sale-demand" rows="2" placeholder="例如：換大一碼；袖長縮短 2cm" disabled></textarea></label>
+    </div>`;
+  }).join("") : '<div class="empty-state"><strong>暫無可登記服裝</strong><span>該訂單尚未配置符合員工性別的服裝。</span></div>';
+  document.getElementById("client-after-sale-error").hidden = true;
+  document.getElementById("client-order-list").hidden = true;
+  document.getElementById("client-after-sale-create").hidden = false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function closeClientAfterSale() {
+  selectedAfterSaleOrderId = "";
+  document.getElementById("client-after-sale-form").reset();
+  document.getElementById("client-after-sale-create").hidden = true;
+  document.getElementById("client-order-list").hidden = false;
+  renderClientOrders();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function persistSignatureConfirmation(data) {
@@ -105,6 +224,7 @@ function switchView(viewName) {
   views.forEach((view) => {
     view.classList.toggle("is-active", view.id === `view-${viewName}`);
   });
+  if (viewName === "orders") renderClientOrders();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -286,16 +406,88 @@ document.getElementById("login-form").addEventListener("submit", (event) => {
     return;
   }
 
+  currentEmployee = employee;
+  resetFlowForEmployee(employee);
   if (employee.signatureConfirmation?.confirmStatus === "confirmed") {
     confirmedData = { ...employee.signatureConfirmation, employee };
     renderSummary(document.getElementById("locked-summary"), confirmedData, true);
-    showNotice(result, "success", "已完成驗證", "服裝數量及簽字已鎖定，如需修改請聯絡工作人員撤銷驗證。");
-    window.setTimeout(() => switchView("locked"), 350);
+    showNotice(result, "success", "登入成功", "服裝確認已完成，您仍可從訂單自主提交退換申請。");
+    window.setTimeout(() => switchView("orders"), 350);
     return;
   }
-  showNotice(result, "success", "登入成功", "請繼續補充個人資料並完成服裝需求確認。");
-  resetFlowForEmployee(employee);
-  window.setTimeout(() => switchView("flow"), 350);
+  showNotice(result, "success", "登入成功", "請選擇訂單後繼續服裝確認或提交退換申請。");
+  window.setTimeout(() => switchView("orders"), 350);
+});
+
+document.getElementById("client-order-cards").addEventListener("click", (event) => {
+  if (event.target.closest('[data-jump="login"]')) {
+    switchView("login");
+    return;
+  }
+  const afterSaleButton = event.target.closest("[data-open-client-after-sale]");
+  if (afterSaleButton) {
+    openClientAfterSale(afterSaleButton.dataset.openClientAfterSale);
+    return;
+  }
+  if (event.target.closest("[data-open-confirmation]")) {
+    if (currentEmployee?.signatureConfirmation?.confirmStatus === "confirmed") switchView("locked");
+    else switchView("flow");
+  }
+});
+
+document.getElementById("client-after-sale-garments").addEventListener("change", (event) => {
+  if (!event.target.matches('.after-sale-garment-check input[type="checkbox"]')) return;
+  const row = event.target.closest("[data-client-after-sale-garment]");
+  row.querySelector(".client-after-sale-demand").disabled = !event.target.checked;
+});
+
+document.getElementById("cancel-client-after-sale").addEventListener("click", closeClientAfterSale);
+
+document.getElementById("client-after-sale-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const error = document.getElementById("client-after-sale-error");
+  const items = [...document.querySelectorAll("[data-client-after-sale-garment]")].flatMap((row) => {
+    if (!row.querySelector('input[type="checkbox"]').checked) return [];
+    return [{
+      garment_id: row.dataset.clientAfterSaleGarment,
+      garment_name: row.dataset.garmentName,
+      quantity: 1,
+      demand: row.querySelector(".client-after-sale-demand").value.trim(),
+    }];
+  });
+  if (!items.length) {
+    showNotice(error, "error", "未選擇服裝", "請至少勾選一件需要退換或修改的服裝。");
+    return;
+  }
+  const invalid = items.find((item) => !item.demand);
+  if (invalid) {
+    showNotice(error, "error", "資料未填完整", `${escapeClientHtml(invalid.garment_name)}：請填寫具體換貨 / 修改需求。`);
+    return;
+  }
+  const store = loadSharedAdminStore() || {};
+  const createdAt = nowClientText();
+  store.afterSaleStatusVersion = 2;
+  store.afterSales = Array.isArray(store.afterSales) ? store.afterSales : [];
+  store.afterSales.push({
+    id: clientUid("AS"),
+    employee_id: currentEmployee.employeeId,
+    employee_name: currentEmployee.name,
+    employee_gender: currentEmployee.gender,
+    employee_unit: currentEmployee.department,
+    order_id: selectedAfterSaleOrderId,
+    items,
+    remark: new FormData(event.currentTarget).get("remark")?.trim() || "",
+    source: "客戶端申請",
+    status: "已登記",
+    created_at: createdAt,
+    updated_at: createdAt,
+    status_history: [{ status: "已登記", changed_at: createdAt }],
+  });
+  localStorage.setItem(sharedAdminStoreKey, JSON.stringify(store));
+  closeClientAfterSale();
+  const records = document.getElementById("client-after-sale-records");
+  records.insertAdjacentHTML("beforebegin", '<div class="notice success client-after-sale-success"><strong>登記成功</strong><span>退換申請已提交，狀態為「已登記」。</span></div>');
+  window.setTimeout(() => document.querySelector(".client-after-sale-success")?.remove(), 3000);
 });
 
 document.querySelector('[name="is_pregnant"]').addEventListener("change", (event) => {

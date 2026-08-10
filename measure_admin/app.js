@@ -70,6 +70,7 @@ const comparisonState = { step: 1, garmentSignature: "", results: [], stats: nul
 
 function seedStore() {
   return {
+    afterSaleStatusVersion: 2,
     tailors: [{ id: "T001", name: "張師傅", username: "tailor-demo", has_password: true }],
     orders: [{
       id: "O001",
@@ -118,10 +119,10 @@ function seedStore() {
         order_id: "ORDER001",
         items: [{ garment_id: "G002", garment_name: "西褲", quantity: 1, demand: "褲長縮短 2cm" }],
         remark: "修改尺寸已與員工確認。",
-        status: "已完成",
+        status: "已處理",
         created_at: "2026-08-08 14:35:00",
         updated_at: "2026-08-09 09:15:00",
-        status_history: [{ status: "已登記", changed_at: "2026-08-08 14:35:00" }, { status: "已完成", changed_at: "2026-08-09 09:15:00" }],
+        status_history: [{ status: "已登記", changed_at: "2026-08-08 14:35:00" }, { status: "已處理", changed_at: "2026-08-09 09:15:00" }],
       },
     ],
   };
@@ -136,7 +137,20 @@ function loadStore() {
     return seeded;
   }
   try {
-    return { ...seedStore(), ...JSON.parse(raw) };
+    const loaded = { ...seedStore(), ...JSON.parse(raw) };
+    if (loaded.afterSaleStatusVersion !== 2) {
+      loaded.afterSales = (loaded.afterSales || []).map((record) => ({
+        ...record,
+        status: record.status === "已完成" ? "已處理" : record.status === "已發回" ? "已完成" : record.status,
+        status_history: (record.status_history || []).map((entry) => ({
+          ...entry,
+          status: entry.status === "已完成" ? "已處理" : entry.status === "已發回" ? "已完成" : entry.status,
+        })),
+      }));
+      loaded.afterSaleStatusVersion = 2;
+      saveStore(loaded);
+    }
+    return loaded;
   } catch {
     const seeded = seedStore();
     saveStore(seeded);
@@ -445,31 +459,53 @@ function afterSaleItemSummary(record) {
   return (record.items || []).map((item) => `${escapeHtml(item.garment_name)} × ${Number(item.quantity) || 0}`).join("<br>") || "-";
 }
 
+function afterSaleDateKey(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return match ? `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}` : "";
+}
+
 function renderAfterSales() {
   const store = loadStore();
   const keyword = document.getElementById("after-sale-filter-keyword").value.trim().toLowerCase();
+  const unit = document.getElementById("after-sale-filter-unit").value.trim().toLowerCase();
+  const startDate = document.getElementById("after-sale-filter-start").value;
+  const endDate = document.getElementById("after-sale-filter-end").value;
   const status = document.getElementById("after-sale-filter-status").value;
   const records = (store.afterSales || []).filter((record) => {
     const haystack = `${record.id} ${record.employee_id} ${record.employee_name}`.toLowerCase();
-    return (!keyword || haystack.includes(keyword)) && (!status || record.status === status);
+    const recordUnit = String(record.employee_unit || "").toLowerCase();
+    const recordDate = afterSaleDateKey(record.created_at);
+    return (!keyword || haystack.includes(keyword))
+      && (!unit || recordUnit.includes(unit))
+      && (!startDate || (recordDate && recordDate >= startDate))
+      && (!endDate || (recordDate && recordDate <= endDate))
+      && (!status || record.status === status);
   }).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   const totalPages = Math.max(1, Math.ceil(records.length / afterSalePagination.pageSize));
   afterSalePagination.page = Math.min(afterSalePagination.page, totalPages);
   const start = (afterSalePagination.page - 1) * afterSalePagination.pageSize;
-  const rows = records.slice(start, start + afterSalePagination.pageSize).map((record) => `
+  const pageRecords = records.slice(start, start + afterSalePagination.pageSize);
+  const selectableCount = pageRecords.filter((record) => record.status !== "已完成").length;
+  const rows = pageRecords.map((record) => `
     <tr>
-      <td><input class="after-sale-row-check" type="checkbox" value="${escapeHtml(record.id)}" aria-label="選擇 ${escapeHtml(record.id)}" ${record.status === "已發回" ? "disabled" : ""} /></td>
-      <td>${escapeHtml(record.id)}</td><td>${escapeHtml(record.created_at)}</td><td>${escapeHtml(record.employee_id)}</td><td>${escapeHtml(record.employee_name)}</td><td>${escapeHtml(orderLabel(record.order_id))}</td><td>${afterSaleItemSummary(record)}</td><td><span class="after-sale-status status-${record.status === "已登記" ? "registered" : record.status === "已完成" ? "completed" : "returned"}">${escapeHtml(record.status)}</span></td><td><button type="button" data-after-sale-detail="${escapeHtml(record.id)}">查看詳情</button></td>
+      <td><input class="after-sale-row-check" type="checkbox" value="${escapeHtml(record.id)}" aria-label="選擇 ${escapeHtml(record.id)}" ${record.status === "已完成" ? "disabled" : ""} /></td>
+      <td>${escapeHtml(record.id)}</td><td>${escapeHtml(record.created_at)}</td><td>${escapeHtml(record.employee_id)}</td><td>${escapeHtml(record.employee_name)}</td><td>${escapeHtml(orderLabel(record.order_id))}</td><td>${afterSaleItemSummary(record)}</td><td><span class="after-sale-status status-${record.status === "已登記" ? "registered" : record.status === "已處理" ? "processed" : "completed"}">${escapeHtml(record.status)}</span></td><td><button type="button" data-after-sale-detail="${escapeHtml(record.id)}">查看詳情</button></td>
     </tr>`);
-  renderTable("after-sale-table", ["選擇", "登記編號", "登記時間", "員工編號", "姓名", "訂單 / 公司", "服裝 / 數量", "狀態", "操作"], rows, "暫無退換登記");
+  renderTable("after-sale-table", [`<label class="table-check-all"><input id="after-sale-check-page" type="checkbox" aria-label="勾選當前頁" ${selectableCount ? "" : "disabled"} /><span>選擇</span></label>`, "登記編號", "登記時間", "員工編號", "姓名", "訂單 / 公司", "服裝 / 數量", "狀態", "操作"], rows, "暫無退換登記");
   document.getElementById("after-sale-pagination").innerHTML = `
     <span>共 ${records.length} 條，第 ${afterSalePagination.page} / ${totalPages} 頁</span>
-    <div><button class="secondary" type="button" data-after-sale-page="prev" ${afterSalePagination.page <= 1 ? "disabled" : ""}>上一頁</button><button class="secondary" type="button" data-after-sale-page="next" ${afterSalePagination.page >= totalPages ? "disabled" : ""}>下一頁</button></div>`;
+    <div><label class="pagination-size"><span>每頁</span><select id="after-sale-page-size"><option value="15" ${afterSalePagination.pageSize === 15 ? "selected" : ""}>15 條/頁</option><option value="50" ${afterSalePagination.pageSize === 50 ? "selected" : ""}>50 條/頁</option><option value="100" ${afterSalePagination.pageSize === 100 ? "selected" : ""}>100 條/頁</option></select></label><button class="secondary" type="button" data-after-sale-page="prev" ${afterSalePagination.page <= 1 ? "disabled" : ""}>上一頁</button><button class="secondary" type="button" data-after-sale-page="next" ${afterSalePagination.page >= totalPages ? "disabled" : ""}>下一頁</button></div>`;
   updateAfterSaleSelection();
 }
 
 function updateAfterSaleSelection() {
-  const count = document.querySelectorAll(".after-sale-row-check:checked").length;
+  const selectable = [...document.querySelectorAll(".after-sale-row-check:not(:disabled)")];
+  const count = selectable.filter((input) => input.checked).length;
+  const checkPage = document.getElementById("after-sale-check-page");
+  if (checkPage) {
+    checkPage.checked = selectable.length > 0 && count === selectable.length;
+    checkPage.indeterminate = count > 0 && count < selectable.length;
+  }
   document.getElementById("after-sale-selected-count").textContent = `已選 ${count} 項`;
 }
 
@@ -570,7 +606,7 @@ function applyAfterSaleStatus() {
   const store = loadStore();
   const changedAt = nowText();
   (store.afterSales || []).forEach((record) => {
-    if (!ids.includes(record.id) || record.status === "已發回" || record.status === status) return;
+    if (!ids.includes(record.id) || record.status === "已完成" || record.status === status) return;
     record.status = status;
     record.updated_at = changedAt;
     record.status_history ||= [];
@@ -579,7 +615,7 @@ function applyAfterSaleStatus() {
   saveStore(store);
   document.getElementById("after-sale-batch-status").value = "";
   renderAfterSales();
-  showToast(status === "已發回" ? "狀態已更新為已發回，本輪需求已結束。" : `售後需求已批量更新為${status}。`);
+  showToast(status === "已完成" ? "狀態已更新為已完成，本輪需求已結束。" : `售後需求已批量更新為${status}。`);
 }
 
 function renderRecords(gender) {
@@ -1465,7 +1501,7 @@ document.getElementById("after-sale-employee-query").addEventListener("keydown",
 });
 document.getElementById("after-sale-form").addEventListener("submit", saveAfterSale);
 document.getElementById("apply-after-sale-status").addEventListener("click", applyAfterSaleStatus);
-document.querySelectorAll("#after-sale-filter-keyword, #after-sale-filter-status").forEach((field) => {
+document.querySelectorAll("#after-sale-filter-keyword, #after-sale-filter-unit, #after-sale-filter-start, #after-sale-filter-end, #after-sale-filter-status").forEach((field) => {
   field.addEventListener(field.tagName === "SELECT" ? "change" : "input", () => {
     afterSalePagination.page = 1;
     renderAfterSales();
@@ -1473,12 +1509,28 @@ document.querySelectorAll("#after-sale-filter-keyword, #after-sale-filter-status
 });
 document.getElementById("clear-after-sale-filters").addEventListener("click", () => {
   document.getElementById("after-sale-filter-keyword").value = "";
+  document.getElementById("after-sale-filter-unit").value = "";
+  document.getElementById("after-sale-filter-start").value = "";
+  document.getElementById("after-sale-filter-end").value = "";
   document.getElementById("after-sale-filter-status").value = "";
   afterSalePagination.page = 1;
   renderAfterSales();
 });
 document.getElementById("after-sale-table").addEventListener("change", (event) => {
+  if (event.target.id === "after-sale-check-page") {
+    document.querySelectorAll(".after-sale-row-check:not(:disabled)").forEach((input) => {
+      input.checked = event.target.checked;
+    });
+    updateAfterSaleSelection();
+    return;
+  }
   if (event.target.matches(".after-sale-row-check")) updateAfterSaleSelection();
+});
+document.getElementById("after-sale-pagination").addEventListener("change", (event) => {
+  if (event.target.id !== "after-sale-page-size") return;
+  afterSalePagination.pageSize = Number(event.target.value);
+  afterSalePagination.page = 1;
+  renderAfterSales();
 });
 document.getElementById("after-sale-garment-list").addEventListener("change", (event) => {
   if (!event.target.matches('.after-sale-garment-check input[type="checkbox"]')) return;

@@ -261,7 +261,11 @@ button {
 .employee-filters { display: grid; grid-template-columns: 160px 160px minmax(220px, 1fr) 100px; gap: 12px; align-items: end; }
 .employee-filters #employee-filter-id,
 .employee-filters #employee-filter-name { width: 160px; }
-.after-sale-filters { display: grid; grid-template-columns: minmax(260px, 1fr) 180px 100px; gap: 12px; align-items: end; }
+.after-sale-filters { display: grid; grid-template-columns: minmax(220px, 1.2fr) minmax(160px, 0.8fr) minmax(280px, 1.25fr) 150px 100px; gap: 10px; align-items: end; }
+.after-sale-date-filter { display: grid; gap: 6px; }
+.after-sale-date-filter > span { color: var(--muted); font-size: 13px; font-weight: 800; }
+.after-sale-date-filter > div { display: grid; grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr); align-items: center; gap: 7px; }
+.after-sale-date-filter em { color: var(--muted); font-size: 13px; font-style: normal; }
 .after-sale-batch-bar { display: flex; align-items: end; justify-content: flex-end; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
 .after-sale-batch-bar > span { margin-right: auto; align-self: center; color: var(--muted); font-weight: 900; }
 .after-sale-batch-bar label { grid-template-columns: auto 150px; align-items: center; }
@@ -336,12 +340,19 @@ button {
   color: var(--muted);
   font-size: 14px;
   font-weight: 800;
+  flex-wrap: wrap;
 }
 
 .pagination div {
   display: flex;
   gap: 8px;
 }
+
+.pagination-size { display: flex; align-items: center; gap: 7px; }
+.pagination-size span { white-space: nowrap; }
+.pagination-size select { min-height: 36px; padding: 0 28px 0 9px; }
+.table-check-all { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.table-check-all input { width: 16px; height: 16px; min-height: auto; }
 
 .pagination button:disabled {
   cursor: not-allowed;
@@ -388,8 +399,8 @@ textarea { width: 100%; border: 1px solid #cbd6e2; border-radius: 8px; padding: 
 .after-sale-garment-row textarea { min-height: 64px; }
 .after-sale-status { display: inline-flex; align-items: center; min-height: 28px; border-radius: 999px; padding: 0 9px; font-size: 12px; font-weight: 900; }
 .after-sale-status.status-registered { background: #e9f1f8; color: var(--blue-dark); }
+.after-sale-status.status-processed { background: #fff4dc; color: #9a5a00; }
 .after-sale-status.status-completed { background: #e8f7f1; color: var(--green); }
-.after-sale-status.status-returned { background: #eef1f4; color: #475569; }
 .after-sale-detail-meta { margin-bottom: 14px; }
 .after-sale-detail-dialog table { min-width: 680px; }
 .wrap-cell { min-width: 320px; white-space: normal; line-height: 1.55; }
@@ -632,6 +643,7 @@ td {
   .analysis-condition-row .analysis-min,
   .analysis-condition-row .analysis-max { width: 108px; }
   .after-sale-garment-row { grid-template-columns: minmax(180px, 1fr) 110px minmax(240px, 1.5fr); }
+  .after-sale-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
@@ -648,6 +660,8 @@ td {
   .employee-filters #employee-filter-id,
   .employee-filters #employee-filter-name { width: 100%; }
   .after-sale-filters, .after-sale-employee-card, .after-sale-detail-meta { grid-template-columns: 1fr; }
+  .after-sale-date-filter > div { grid-template-columns: 1fr; }
+  .after-sale-date-filter em { display: none; }
   .after-sale-batch-bar { align-items: stretch; flex-direction: column; }
   .after-sale-batch-bar > span { margin-right: 0; }
   .after-sale-batch-bar label { grid-template-columns: 1fr; }
