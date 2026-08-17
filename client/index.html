@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>MC 客戶端 H5 服裝需求確認 Demo</title>
-    <link rel="stylesheet" href="./styles.css?v=20260810-status2" />
+    <link rel="stylesheet" href="./styles.css?v=20260817-appointment-calendar-modal" />
   </head>
   <body>
     <main class="app-shell">
@@ -21,6 +21,7 @@
       <nav class="tabs" aria-label="Demo views">
         <button class="tab is-active" type="button" data-view="login">登入</button>
         <button class="tab" type="button" data-view="orders">我的訂單</button>
+        <button class="tab" type="button" data-view="appointments">量體預約</button>
         <button class="tab" type="button" data-view="flow">確認流程</button>
         <button class="tab" type="button" data-view="locked">已確認</button>
         <button class="tab" type="button" data-view="reset">重置密碼</button>
@@ -63,41 +64,34 @@
         <div class="notice" id="login-result" hidden></div>
       </section>
 
+      <section class="view" id="view-appointments" aria-labelledby="appointments-title">
+        <div class="section-head">
+          <p class="section-kicker">Measurement Appointment</p>
+          <h1 id="appointments-title">量體預約</h1>
+        </div>
+        <div class="client-profile-card" id="appointment-profile-card"></div>
+        <div class="appointment-selector" id="client-appointment-slots"></div>
+        <div class="subsection-head">
+          <p class="section-kicker">My Appointments</p>
+          <h2>我的預約</h2>
+        </div>
+        <div class="appointment-record-list" id="client-appointment-records"></div>
+      </section>
+
       <section class="view" id="view-orders" aria-labelledby="orders-title">
         <div id="client-order-list">
           <div class="section-head">
             <p class="section-kicker">My Orders</p>
             <h1 id="orders-title">我的訂單</h1>
-            <p>選擇需要處理的訂單，可繼續服裝確認或自主提交退換申請。</p>
+            <p>選擇需要處理的訂單，可繼續服裝確認或前往量體預約。</p>
           </div>
           <div class="client-profile-card" id="client-profile-card"></div>
           <div class="client-order-cards" id="client-order-cards"></div>
           <div class="subsection-head">
-            <p class="section-kicker">Return &amp; Exchange</p>
-            <h2>退換申請記錄</h2>
+            <p class="section-kicker">Alteration Records</p>
+            <h2>申請記錄</h2>
           </div>
           <div class="after-sale-records" id="client-after-sale-records"></div>
-        </div>
-
-        <div id="client-after-sale-create" hidden>
-          <div class="section-head">
-            <p class="section-kicker">Return &amp; Exchange</p>
-            <h1>退換登記</h1>
-            <p>勾選需要處理的服裝，填寫具體換貨 / 修改需求即可。</p>
-          </div>
-          <form class="form" id="client-after-sale-form">
-            <div class="client-profile-card" id="client-after-sale-order-card"></div>
-            <div class="after-sale-garment-list" id="client-after-sale-garments"></div>
-            <label class="field">
-              <span>補充說明（選填）</span>
-              <textarea name="remark" rows="3" placeholder="例如：方便聯絡時間、服裝交回方式等"></textarea>
-            </label>
-            <div class="notice error" id="client-after-sale-error" hidden></div>
-            <div class="button-row">
-              <button class="secondary-action" type="button" id="cancel-client-after-sale">返回列表</button>
-              <button class="primary-action" type="submit">完成登記</button>
-            </div>
-          </form>
         </div>
       </section>
 
@@ -329,6 +323,16 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260810-status2"></script>
+    <div class="appointment-modal" id="appointment-modal" role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title" hidden>
+      <div class="appointment-modal-backdrop" data-close-appointment-modal></div>
+      <div class="appointment-modal-card">
+        <div class="appointment-modal-icon" aria-hidden="true">✓</div>
+        <strong id="appointment-modal-title">預約登記成功</strong>
+        <p id="appointment-modal-message">門店將按此時段安排店員和裁縫師。</p>
+        <button class="primary-action" type="button" data-close-appointment-modal>知道了</button>
+      </div>
+    </div>
+
+    <script src="./app.js?v=20260817-appointment-calendar-modal"></script>
   </body>
 </html>

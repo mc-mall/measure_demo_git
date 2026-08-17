@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260810-subaccounts" />
+    <link rel="stylesheet" href="./styles.css?v=20260817-appointments" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -40,6 +40,7 @@
           <button type="button" data-view="orders" data-owner-only>訂單管理</button>
           <button type="button" data-view="employees">員工管理</button>
           <button type="button" data-view="after-sales" data-owner-only>退換登記</button>
+          <button type="button" data-view="appointments" data-owner-only>預約管理</button>
           <button type="button" data-view="records-male">男士量體記錄</button>
           <button type="button" data-view="records-female">女士量體記錄</button>
           <span class="nav-section" data-owner-only>系統配置</span>
@@ -138,6 +139,15 @@
           </div>
           <div class="panel table-wrap"><table id="after-sale-table"></table></div>
           <div class="panel pagination" id="after-sale-pagination"></div>
+        </section>
+
+        <section class="view" id="view-appointments">
+          <div class="panel list-toolbar">
+            <div><h3>預約時段</h3><p>配置退換重新量體的服務地址、服務時間與接待容量，供員工端直接登記。</p></div>
+            <button type="button" id="open-appointment-slot-editor">新增時段</button>
+          </div>
+          <div class="panel appointment-summary" id="appointment-summary"></div>
+          <div class="panel table-wrap"><table id="appointment-slot-table"></table></div>
         </section>
 
         <section class="view" id="view-records-male">
@@ -311,6 +321,28 @@
         <div class="dialog-actions"><button type="submit">保存子賬號</button></div>
       </form>
     </dialog>
+    <dialog class="entity-dialog appointment-slot-dialog" id="appointment-slot-dialog">
+      <form id="appointment-slot-form">
+        <div class="dialog-head"><div><h3 id="appointment-slot-dialog-title">新增預約時段</h3><p>同一地址可建立多個服務時段，每個時段獨立計算預約人數。</p></div><button class="secondary" type="button" data-close-appointment-slot>取消</button></div>
+        <input type="hidden" name="id" />
+        <div class="dialog-form-grid appointment-slot-grid">
+          <label><span>對應訂單</span><select name="order_id" id="appointment-order-select" required></select></label>
+          <label class="appointment-address-field"><span>預約地址</span><input name="address" maxlength="120" placeholder="例如：澳門門店 2 樓量體區" required /></label>
+          <label><span>服務日期</span><input name="date" type="date" required /></label>
+          <label><span>開始時間</span><input name="start_time" type="time" required /></label>
+          <label><span>結束時間</span><input name="end_time" type="time" required /></label>
+          <label><span>可預約最大值</span><input name="max_bookings" type="number" min="1" max="999" step="1" required /></label>
+          <label><span>時段狀態</span><select name="status"><option value="enabled">開放預約</option><option value="disabled">暫停預約</option></select></label>
+        </div>
+        <label class="appointment-overbook-option"><input name="allow_overbook" type="checkbox" /><span><strong>支持超額預約</strong><small>開啟後，達到最大值仍允許員工繼續登記；管理列表會標記超額人數。</small></span></label>
+        <p class="form-error" id="appointment-slot-error" hidden></p>
+        <div class="dialog-actions"><button type="submit">保存預約時段</button></div>
+      </form>
+    </dialog>
+    <dialog class="appointment-detail-dialog" id="appointment-detail-dialog">
+      <div class="dialog-head"><div><h3 id="appointment-detail-title">預約員工明細</h3><p id="appointment-detail-subtitle"></p></div><button class="secondary" type="button" data-close-appointment-detail>關閉</button></div>
+      <div class="table-wrap"><table id="appointment-detail-table"></table></div>
+    </dialog>
     <dialog class="entity-dialog followup-dialog" id="followup-dialog">
       <form id="followup-form">
         <div class="dialog-head"><div><h3>量體事項跟進</h3><p id="followup-subtitle"></p></div><button class="secondary" type="button" data-close-followup>取消</button></div>
@@ -393,6 +425,6 @@
       <div class="analysis-result-toolbar"><label><span>搜尋員工</span><input id="analysis-result-search" type="search" placeholder="員工編號或姓名" /></label><button class="secondary" type="button" id="export-analysis-results">導出分析結果</button></div>
       <div class="table-wrap"><table id="analysis-result-table"></table></div>
     </dialog>
-    <script src="./app.js?v=20260810-subaccounts"></script>
+    <script src="./app.js?v=20260817-appointments"></script>
   </body>
 </html>

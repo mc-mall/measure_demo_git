@@ -9,7 +9,8 @@ let currentEmployee = null;
 let resetCodeSent = false;
 let signatureDirty = false;
 let confirmedData = null;
-let selectedAfterSaleOrderId = "";
+let selectedAppointmentOrderId = "";
+const appointmentSelectorState = { address: "", date: "", slotId: "", calendarMonth: "", calendarOpen: false };
 const sharedAdminStoreKey = "mc-measure-admin-prototype-state";
 
 const fallbackOrders = [{
@@ -141,7 +142,7 @@ function renderClientOrders() {
   const cards = document.getElementById("client-order-cards");
   const records = document.getElementById("client-after-sale-records");
   if (!currentEmployee) {
-    profile.innerHTML = '<div class="empty-state"><strong>請先登入</strong><span>登入後即可查看訂單及提交退換申請。</span></div>';
+    profile.innerHTML = '<div class="empty-state"><strong>請先登入</strong><span>登入後即可查看訂單、申請記錄及量體預約。</span></div>';
     cards.innerHTML = '<button class="primary-action" type="button" data-jump="login">前往登入</button>';
     records.innerHTML = "";
     return;
@@ -154,7 +155,7 @@ function renderClientOrders() {
       <div><span>訂單 / 項目</span><strong>${escapeClientHtml(order.order_id)}</strong><p>${escapeClientHtml(order.company_name)}</p></div>
       <div class="button-row">
         <button class="secondary-action" type="button" data-open-confirmation>服裝確認</button>
-        <button class="primary-action" type="button" data-open-client-after-sale="${escapeClientHtml(order.order_id)}">退換登記</button>
+        <button class="primary-action" type="button" data-open-appointment="${escapeClientHtml(order.order_id)}">量體預約</button>
       </div>
     </article>`).join("") : '<div class="empty-state"><strong>暫無可選訂單</strong><span>請聯絡工作人員核對員工的歸屬訂單。</span></div>';
 
@@ -163,36 +164,197 @@ function renderClientOrders() {
     <article class="after-sale-record-card">
       <div class="record-card-head"><strong>${escapeClientHtml(record.id)}</strong><span class="after-sale-status status-${afterSaleStatusClass(record.status)}">${escapeClientHtml(record.status)}</span></div>
       <p>${escapeClientHtml(record.order_id)} · ${escapeClientHtml(record.created_at)}</p>
-      <div class="record-item-list">${(record.items || []).map((item) => `<div><strong>${escapeClientHtml(item.garment_name)}</strong><span>${escapeClientHtml(item.demand)}</span></div>`).join("")}</div>
-      ${record.remark ? `<p class="record-remark">補充說明：${escapeClientHtml(record.remark)}</p>` : ""}
-    </article>`).join("") : '<div class="empty-state"><strong>暫無退換申請</strong><span>從上方訂單點擊「退換登記」即可自主提交。</span></div>';
+      <div class="record-item-list">${(record.items || []).map((item) => `<div><strong>${escapeClientHtml(item.garment_name)}</strong><span>數量：${escapeClientHtml(item.quantity || 1)}</span><span>修改備註：${escapeClientHtml(item.demand || "-")}</span></div>`).join("")}</div>
+      <p class="record-remark">整體備註：${escapeClientHtml(record.remark || "-")}</p>
+    </article>`).join("") : '<div class="empty-state"><strong>暫無申請記錄</strong><span>員工到店修改後，由門市在管理後台錄入，記錄將顯示在此處。</span></div>';
 }
 
-function openClientAfterSale(orderId) {
-  const order = getEmployeeOrders().find((item) => item.order_id === orderId);
-  if (!currentEmployee || !order) return;
-  selectedAfterSaleOrderId = orderId;
-  document.getElementById("client-after-sale-order-card").innerHTML = `<div><span>申請員工</span><strong>${escapeClientHtml(currentEmployee.employeeId)} · ${escapeClientHtml(currentEmployee.name)}</strong></div><div><span>選中訂單</span><strong>${escapeClientHtml(order.order_id)} · ${escapeClientHtml(order.company_name)}</strong></div>`;
-  const garments = (order.garments || []).filter((garment) => garment.gender === currentEmployee.gender);
-  document.getElementById("client-after-sale-garments").innerHTML = garments.length ? garments.map((garment) => {
-    return `<div class="after-sale-garment-row" data-client-after-sale-garment="${escapeClientHtml(garment.id || garment.name)}" data-garment-name="${escapeClientHtml(garment.name)}">
-      <label class="after-sale-garment-check"><input type="checkbox" /><span><strong>${escapeClientHtml(garment.name)}</strong>勾選後填寫需求</span></label>
-      <label class="field"><span>換貨 / 修改需求</span><textarea class="client-after-sale-demand" rows="2" placeholder="例如：換大一碼；袖長縮短 2cm" disabled></textarea></label>
-    </div>`;
-  }).join("") : '<div class="empty-state"><strong>暫無可登記服裝</strong><span>該訂單尚未配置符合員工性別的服裝。</span></div>';
-  document.getElementById("client-after-sale-error").hidden = true;
-  document.getElementById("client-order-list").hidden = true;
-  document.getElementById("client-after-sale-create").hidden = false;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+function clientAppointmentBookings(store, slotId) {
+  return (store?.appointments || []).filter((item) => item.slot_id === slotId && item.status === "booked");
 }
 
-function closeClientAfterSale() {
-  selectedAfterSaleOrderId = "";
-  document.getElementById("client-after-sale-form").reset();
-  document.getElementById("client-after-sale-create").hidden = true;
-  document.getElementById("client-order-list").hidden = false;
-  renderClientOrders();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+function clientAppointmentTime(slot) {
+  return `${slot.date} ${slot.start_time}–${slot.end_time}`;
+}
+
+function clientSlotOrderId(slot, store) {
+  if (slot.order_id) return slot.order_id;
+  return store?.orders?.length === 1 ? store.orders[0].order_id : "";
+}
+
+function appointmentMonthLabel(monthValue) {
+  const [year, month] = monthValue.split("-").map(Number);
+  return `${year} 年 ${month} 月`;
+}
+
+function renderAppointmentCalendar(dates) {
+  const months = [...new Set(dates.map((date) => date.slice(0, 7)))].sort();
+  if (!months.includes(appointmentSelectorState.calendarMonth)) {
+    appointmentSelectorState.calendarMonth = appointmentSelectorState.date?.slice(0, 7) || months[0];
+  }
+  const monthValue = appointmentSelectorState.calendarMonth;
+  const [year, month] = monthValue.split("-").map(Number);
+  const firstWeekday = new Date(year, month - 1, 1).getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const availableDates = new Set(dates);
+  const cells = Array.from({ length: firstWeekday }, () => '<span class="appointment-calendar-day is-empty"></span>');
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = `${monthValue}-${String(day).padStart(2, "0")}`;
+    const enabled = availableDates.has(date);
+    cells.push(`<button class="appointment-calendar-day ${appointmentSelectorState.date === date ? "is-selected" : ""}" type="button" data-select-appointment-date="${date}" ${enabled ? "" : "disabled"} aria-label="${date}">${day}</button>`);
+  }
+  const monthIndex = months.indexOf(monthValue);
+  return `<div class="appointment-calendar">
+    <div class="appointment-calendar-head">
+      <button type="button" data-calendar-month="${months[monthIndex - 1] || ""}" ${monthIndex <= 0 ? "disabled" : ""} aria-label="上一個月">‹</button>
+      <strong>${appointmentMonthLabel(monthValue)}</strong>
+      <button type="button" data-calendar-month="${months[monthIndex + 1] || ""}" ${monthIndex < 0 || monthIndex >= months.length - 1 ? "disabled" : ""} aria-label="下一個月">›</button>
+    </div>
+    <div class="appointment-calendar-week"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+    <div class="appointment-calendar-grid">${cells.join("")}</div>
+  </div>`;
+}
+
+function showAppointmentModal(title, message) {
+  const modal = document.getElementById("appointment-modal");
+  document.getElementById("appointment-modal-title").textContent = title;
+  document.getElementById("appointment-modal-message").textContent = message;
+  modal.hidden = false;
+  document.body.classList.add("modal-open");
+  modal.querySelector("button[data-close-appointment-modal]").focus();
+}
+
+function closeAppointmentModal() {
+  document.getElementById("appointment-modal").hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+function renderClientAppointments() {
+  const profile = document.getElementById("appointment-profile-card");
+  const slotList = document.getElementById("client-appointment-slots");
+  const recordList = document.getElementById("client-appointment-records");
+  const store = loadSharedAdminStore();
+  if (!currentEmployee) {
+    profile.innerHTML = '<div class="empty-state"><strong>請先登入</strong><span>登入後即可查看可預約時段並登記。</span></div>';
+    slotList.innerHTML = '<button class="primary-action" type="button" data-jump="login">前往登入</button>';
+    recordList.innerHTML = "";
+    return;
+  }
+  const appointmentOrderId = selectedAppointmentOrderId || currentEmployee.orderId;
+  const appointmentOrder = getClientOrders().find((order) => order.order_id === appointmentOrderId);
+  profile.innerHTML = `<div><span>預約員工</span><strong>${escapeClientHtml(currentEmployee.employeeId)} · ${escapeClientHtml(currentEmployee.name)}</strong></div><div><span>對應訂單</span><strong>${escapeClientHtml(appointmentOrderId)}${appointmentOrder ? ` · ${escapeClientHtml(appointmentOrder.company_name)}` : ""}</strong></div>`;
+  const orderSlots = [...(store?.appointmentSlots || [])].filter((slot) => clientSlotOrderId(slot, store) === appointmentOrderId);
+  const slotIds = new Set(orderSlots.map((slot) => slot.id));
+  const myAppointments = (store?.appointments || []).filter((item) => item.employee_id === currentEmployee.employeeId && item.status === "booked" && (item.order_id === appointmentOrderId || slotIds.has(item.slot_id)));
+  const availableSlots = orderSlots.filter((slot) => {
+    if (slot.status !== "enabled") return false;
+    if (myAppointments.some((item) => item.slot_id === slot.id)) return false;
+    const booked = clientAppointmentBookings(store, slot.id).length;
+    if (booked >= Number(slot.max_bookings) && !slot.allow_overbook) return false;
+    const cancelledBefore = (store?.appointments || []).some((item) => item.slot_id === slot.id && item.employee_id === currentEmployee.employeeId && item.status === "cancelled");
+    if (cancelledBefore && !slot.allow_overbook) return false;
+    return true;
+  }).sort((a, b) => `${a.date} ${a.start_time}`.localeCompare(`${b.date} ${b.start_time}`));
+  if (availableSlots.length) {
+    const addresses = [...new Set(availableSlots.map((slot) => String(slot.address || "未設置地址").trim()))];
+    if (!addresses.includes(appointmentSelectorState.address)) appointmentSelectorState.address = addresses[0];
+    const addressSlots = availableSlots.filter((slot) => String(slot.address || "未設置地址").trim() === appointmentSelectorState.address);
+    const dates = [...new Set(addressSlots.map((slot) => slot.date))].sort();
+    if (!dates.includes(appointmentSelectorState.date)) appointmentSelectorState.date = dates[0];
+    if (!dates.some((date) => date.startsWith(appointmentSelectorState.calendarMonth))) appointmentSelectorState.calendarMonth = appointmentSelectorState.date.slice(0, 7);
+    const timeSlots = addressSlots.filter((slot) => slot.date === appointmentSelectorState.date);
+    if (!timeSlots.some((slot) => slot.id === appointmentSelectorState.slotId)) appointmentSelectorState.slotId = "";
+    slotList.innerHTML = `<section class="appointment-selector-card">
+      <label class="appointment-selector-row"><span>量體地址</span><select id="appointment-address-select" aria-label="量體地址">${addresses.map((address) => `<option value="${escapeClientHtml(address)}" ${address === appointmentSelectorState.address ? "selected" : ""}>${escapeClientHtml(address)}</option>`).join("")}</select></label>
+      <button class="appointment-selector-row appointment-date-row" type="button" data-open-appointment-calendar><span>預約日期</span><strong>${escapeClientHtml(appointmentSelectorState.date)}</strong></button>
+      <div class="appointment-time-selector">
+        <h2>預約時間段</h2>
+        <div class="appointment-time-grid">${timeSlots.map((slot) => {
+          const booked = clientAppointmentBookings(store, slot.id).length;
+          const capacityText = `已預約 ${booked}/${Number(slot.max_bookings)}`;
+          return `<button class="appointment-time-option ${appointmentSelectorState.slotId === slot.id ? "is-selected" : ""}" type="button" data-select-appointment-slot="${slot.id}"><strong>${escapeClientHtml(slot.start_time)}–${escapeClientHtml(slot.end_time)}</strong><span>${capacityText}</span></button>`;
+        }).join("")}</div>
+      </div>
+      <button class="primary-action appointment-confirm-button" type="button" data-confirm-appointment ${appointmentSelectorState.slotId ? "" : "disabled"}>確認預約</button>
+      ${appointmentSelectorState.calendarOpen ? `<div class="appointment-calendar-modal" role="dialog" aria-modal="true" aria-labelledby="appointment-calendar-title">
+        <button class="appointment-calendar-backdrop" type="button" data-close-appointment-calendar aria-label="關閉日期選擇"></button>
+        <div class="appointment-calendar-dialog">
+          <div class="appointment-calendar-title"><strong id="appointment-calendar-title">選擇預約日期</strong><button type="button" data-close-appointment-calendar aria-label="關閉">×</button></div>
+          ${renderAppointmentCalendar(dates)}
+        </div>
+      </div>` : ""}
+    </section>`;
+  } else {
+    appointmentSelectorState.address = "";
+    appointmentSelectorState.date = "";
+    appointmentSelectorState.slotId = "";
+    appointmentSelectorState.calendarMonth = "";
+    appointmentSelectorState.calendarOpen = false;
+    slotList.innerHTML = `<div class="empty-state"><strong>暫無可預約時段</strong><span>${escapeClientHtml(appointmentOrderId)} 目前沒有可登記的服務時間。</span></div>`;
+  }
+  document.body.classList.toggle("calendar-open", appointmentSelectorState.calendarOpen);
+  recordList.innerHTML = myAppointments.length ? myAppointments.map((booking) => {
+    const slot = (store?.appointmentSlots || []).find((item) => item.id === booking.slot_id);
+    return `<article class="appointment-record-card"><div><strong>${slot ? escapeClientHtml(clientAppointmentTime(slot)) : "時段已調整"}</strong><span>${slot ? escapeClientHtml(slot.address) : "請聯絡門店確認最新安排"}</span></div><button class="secondary-action" type="button" data-cancel-appointment="${booking.id}">取消預約</button></article>`;
+  }).join("") : '<div class="empty-state"><strong>暫無預約</strong><span>從上方選擇服務時段完成登記。</span></div>';
+}
+
+function bookAppointment(slotId) {
+  if (!currentEmployee) {
+    switchView("login");
+    return;
+  }
+  const store = loadSharedAdminStore();
+  const slot = store?.appointmentSlots?.find((item) => item.id === slotId);
+  const appointmentOrderId = selectedAppointmentOrderId || currentEmployee.orderId;
+  if (!store || !slot || slot.status !== "enabled" || clientSlotOrderId(slot, store) !== appointmentOrderId) {
+    window.alert("該時段已暫停或不存在，請刷新後重新選擇。");
+    renderClientAppointments();
+    return;
+  }
+  store.appointments = Array.isArray(store.appointments) ? store.appointments : [];
+  if (store.appointments.some((item) => item.slot_id === slotId && item.employee_id === currentEmployee.employeeId && item.status === "booked")) {
+    window.alert("您已預約此時段，無需重複登記。");
+    renderClientAppointments();
+    return;
+  }
+  const cancelledBefore = store.appointments.some((item) => item.slot_id === slotId && item.employee_id === currentEmployee.employeeId && item.status === "cancelled");
+  if (cancelledBefore && !slot.allow_overbook) {
+    window.alert("該預約取消後不可重新登記，請選擇其他可預約時段。");
+    renderClientAppointments();
+    return;
+  }
+  const booked = clientAppointmentBookings(store, slotId).length;
+  if (booked >= Number(slot.max_bookings) && !slot.allow_overbook) {
+    window.alert("該時段剛剛已滿額，請選擇其他服務時間。");
+    renderClientAppointments();
+    return;
+  }
+  if (!window.confirm(`確認預約 ${clientAppointmentTime(slot)}？\n地址：${slot.address}`)) return;
+  store.appointments.push({
+    id: clientUid("APB"),
+    slot_id: slotId,
+    employee_id: currentEmployee.employeeId,
+    employee_name: currentEmployee.name,
+    employee_unit: currentEmployee.department,
+    order_id: appointmentOrderId,
+    status: "booked",
+    created_at: nowClientText(),
+  });
+  localStorage.setItem(sharedAdminStoreKey, JSON.stringify(store));
+  renderClientAppointments();
+  showAppointmentModal("預約登記成功", "門店將按此時段安排店員和裁縫師。");
+}
+
+function cancelAppointment(bookingId) {
+  const store = loadSharedAdminStore();
+  const booking = store?.appointments?.find((item) => item.id === bookingId && item.employee_id === currentEmployee?.employeeId && item.status === "booked");
+  if (!booking || !window.confirm("確定取消此預約？取消後名額會立即釋放。")) return;
+  booking.status = "cancelled";
+  booking.cancelled_at = nowClientText();
+  localStorage.setItem(sharedAdminStoreKey, JSON.stringify(store));
+  renderClientAppointments();
+  showAppointmentModal("預約已取消", "該時段名額已立即釋放。");
 }
 
 function persistSignatureConfirmation(data) {
@@ -225,6 +387,7 @@ function switchView(viewName) {
     view.classList.toggle("is-active", view.id === `view-${viewName}`);
   });
   if (viewName === "orders") renderClientOrders();
+  if (viewName === "appointments") renderClientAppointments();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -322,6 +485,12 @@ function renderSummary(target, data, includeSignature = false) {
 
 function resetFlowForEmployee(employee) {
   currentEmployee = employee;
+  selectedAppointmentOrderId = employee.orderId;
+  appointmentSelectorState.address = "";
+  appointmentSelectorState.date = "";
+  appointmentSelectorState.slotId = "";
+  appointmentSelectorState.calendarMonth = "";
+  appointmentSelectorState.calendarOpen = false;
   document.getElementById("employee-id-text").textContent = employee.employeeId;
   document.getElementById("employee-name-text").textContent = employee.name;
   document.getElementById("employee-gender-text").textContent = employee.gender;
@@ -411,11 +580,11 @@ document.getElementById("login-form").addEventListener("submit", (event) => {
   if (employee.signatureConfirmation?.confirmStatus === "confirmed") {
     confirmedData = { ...employee.signatureConfirmation, employee };
     renderSummary(document.getElementById("locked-summary"), confirmedData, true);
-    showNotice(result, "success", "登入成功", "服裝確認已完成，您仍可從訂單自主提交退換申請。");
+    showNotice(result, "success", "登入成功", "服裝確認已完成，您可查看申請記錄或前往量體預約。");
     window.setTimeout(() => switchView("orders"), 350);
     return;
   }
-  showNotice(result, "success", "登入成功", "請選擇訂單後繼續服裝確認或提交退換申請。");
+  showNotice(result, "success", "登入成功", "請選擇訂單後繼續服裝確認或前往量體預約。");
   window.setTimeout(() => switchView("orders"), 350);
 });
 
@@ -424,9 +593,15 @@ document.getElementById("client-order-cards").addEventListener("click", (event) 
     switchView("login");
     return;
   }
-  const afterSaleButton = event.target.closest("[data-open-client-after-sale]");
-  if (afterSaleButton) {
-    openClientAfterSale(afterSaleButton.dataset.openClientAfterSale);
+  const appointmentButton = event.target.closest("[data-open-appointment]");
+  if (appointmentButton) {
+    selectedAppointmentOrderId = appointmentButton.dataset.openAppointment;
+    appointmentSelectorState.address = "";
+    appointmentSelectorState.date = "";
+    appointmentSelectorState.slotId = "";
+    appointmentSelectorState.calendarMonth = "";
+    appointmentSelectorState.calendarOpen = false;
+    switchView("appointments");
     return;
   }
   if (event.target.closest("[data-open-confirmation]")) {
@@ -435,59 +610,72 @@ document.getElementById("client-order-cards").addEventListener("click", (event) 
   }
 });
 
-document.getElementById("client-after-sale-garments").addEventListener("change", (event) => {
-  if (!event.target.matches('.after-sale-garment-check input[type="checkbox"]')) return;
-  const row = event.target.closest("[data-client-after-sale-garment]");
-  row.querySelector(".client-after-sale-demand").disabled = !event.target.checked;
+document.getElementById("client-appointment-slots").addEventListener("click", (event) => {
+  const jump = event.target.closest("[data-jump]");
+  if (jump) {
+    switchView(jump.dataset.jump);
+    return;
+  }
+  const slotButton = event.target.closest("[data-select-appointment-slot]");
+  if (slotButton) {
+    appointmentSelectorState.slotId = slotButton.dataset.selectAppointmentSlot;
+    renderClientAppointments();
+    return;
+  }
+  if (event.target.closest("[data-open-appointment-calendar]")) {
+    appointmentSelectorState.calendarOpen = true;
+    appointmentSelectorState.calendarMonth = appointmentSelectorState.date.slice(0, 7);
+    renderClientAppointments();
+    return;
+  }
+  if (event.target.closest("[data-close-appointment-calendar]")) {
+    appointmentSelectorState.calendarOpen = false;
+    renderClientAppointments();
+    return;
+  }
+  const dateButton = event.target.closest("[data-select-appointment-date]");
+  if (dateButton) {
+    appointmentSelectorState.date = dateButton.dataset.selectAppointmentDate;
+    appointmentSelectorState.slotId = "";
+    appointmentSelectorState.calendarOpen = false;
+    renderClientAppointments();
+    return;
+  }
+  const monthButton = event.target.closest("[data-calendar-month]");
+  if (monthButton && !monthButton.disabled) {
+    appointmentSelectorState.calendarMonth = monthButton.dataset.calendarMonth;
+    renderClientAppointments();
+    return;
+  }
+  if (event.target.closest("[data-confirm-appointment]") && appointmentSelectorState.slotId) bookAppointment(appointmentSelectorState.slotId);
 });
 
-document.getElementById("cancel-client-after-sale").addEventListener("click", closeClientAfterSale);
+document.getElementById("client-appointment-slots").addEventListener("change", (event) => {
+  if (event.target.id === "appointment-address-select") {
+    appointmentSelectorState.address = event.target.value;
+    appointmentSelectorState.date = "";
+    appointmentSelectorState.slotId = "";
+    appointmentSelectorState.calendarMonth = "";
+    appointmentSelectorState.calendarOpen = false;
+    renderClientAppointments();
+  }
+});
 
-document.getElementById("client-after-sale-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const error = document.getElementById("client-after-sale-error");
-  const items = [...document.querySelectorAll("[data-client-after-sale-garment]")].flatMap((row) => {
-    if (!row.querySelector('input[type="checkbox"]').checked) return [];
-    return [{
-      garment_id: row.dataset.clientAfterSaleGarment,
-      garment_name: row.dataset.garmentName,
-      quantity: 1,
-      demand: row.querySelector(".client-after-sale-demand").value.trim(),
-    }];
-  });
-  if (!items.length) {
-    showNotice(error, "error", "未選擇服裝", "請至少勾選一件需要退換或修改的服裝。");
-    return;
+document.getElementById("appointment-modal").addEventListener("click", (event) => {
+  if (event.target.closest("[data-close-appointment-modal]")) closeAppointmentModal();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !document.getElementById("appointment-modal").hidden) closeAppointmentModal();
+  if (event.key === "Escape" && appointmentSelectorState.calendarOpen) {
+    appointmentSelectorState.calendarOpen = false;
+    renderClientAppointments();
   }
-  const invalid = items.find((item) => !item.demand);
-  if (invalid) {
-    showNotice(error, "error", "資料未填完整", `${escapeClientHtml(invalid.garment_name)}：請填寫具體換貨 / 修改需求。`);
-    return;
-  }
-  const store = loadSharedAdminStore() || {};
-  const createdAt = nowClientText();
-  store.afterSaleStatusVersion = 2;
-  store.afterSales = Array.isArray(store.afterSales) ? store.afterSales : [];
-  store.afterSales.push({
-    id: clientUid("AS"),
-    employee_id: currentEmployee.employeeId,
-    employee_name: currentEmployee.name,
-    employee_gender: currentEmployee.gender,
-    employee_unit: currentEmployee.department,
-    order_id: selectedAfterSaleOrderId,
-    items,
-    remark: new FormData(event.currentTarget).get("remark")?.trim() || "",
-    source: "客戶端申請",
-    status: "已登記",
-    created_at: createdAt,
-    updated_at: createdAt,
-    status_history: [{ status: "已登記", changed_at: createdAt }],
-  });
-  localStorage.setItem(sharedAdminStoreKey, JSON.stringify(store));
-  closeClientAfterSale();
-  const records = document.getElementById("client-after-sale-records");
-  records.insertAdjacentHTML("beforebegin", '<div class="notice success client-after-sale-success"><strong>登記成功</strong><span>退換申請已提交，狀態為「已登記」。</span></div>');
-  window.setTimeout(() => document.querySelector(".client-after-sale-success")?.remove(), 3000);
+});
+
+document.getElementById("client-appointment-records").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-cancel-appointment]");
+  if (button) cancelAppointment(button.dataset.cancelAppointment);
 });
 
 document.querySelector('[name="is_pregnant"]').addEventListener("change", (event) => {
