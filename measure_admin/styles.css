@@ -430,6 +430,21 @@ textarea { width: 100%; border: 1px solid #cbd6e2; border-radius: 8px; padding: 
 .status-pill { display: inline-flex; align-items: center; min-height: 26px; border-radius: 999px; padding: 0 9px; background: #e8f6f0; color: var(--green); font-size: 12px; font-weight: 900; }
 .status-pill.is-disabled { background: #f1f5f9; color: var(--muted); }
 .status-pill.is-pending { background: #fff7e6; color: #9a5b00; }
+.appointment-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.appointment-summary > div { border-radius: 8px; padding: 13px 15px; background: #f7fafc; }
+.appointment-summary span, .appointment-summary strong { display: block; }
+.appointment-summary span { color: var(--muted); font-size: 13px; font-weight: 800; }
+.appointment-summary strong { margin-top: 5px; font-size: 24px; }
+.appointment-summary .is-warning, .capacity-over { color: #b54708; }
+.appointment-slot-dialog { width: min(760px, calc(100vw - 40px)); }
+.appointment-slot-grid { margin-top: 4px; }
+.appointment-address-field { grid-column: 1 / -1; }
+.appointment-overbook-option { margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; padding: 13px; display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; }
+.appointment-overbook-option input { width: 18px; height: 18px; min-height: auto; margin-top: 2px; }
+.appointment-overbook-option span, .appointment-overbook-option strong, .appointment-overbook-option small { display: block; }
+.appointment-overbook-option small { margin-top: 4px; color: var(--muted); line-height: 1.5; }
+.appointment-detail-dialog { width: min(900px, calc(100vw - 40px)); max-height: calc(100vh - 40px); overflow-y: auto; }
+.appointment-detail-dialog table { min-width: 720px; }
 .followup-note { margin-top: 14px; }
 .followup-meta { display: grid; gap: 4px; min-width: 180px; white-space: normal; }
 .followup-meta small { color: var(--muted); line-height: 1.45; }
@@ -685,6 +700,8 @@ td {
   .after-sale-batch-bar > span { margin-right: 0; }
   .after-sale-batch-bar label { grid-template-columns: 1fr; }
   .after-sale-garment-row { grid-template-columns: 1fr; }
+  .appointment-summary, .appointment-slot-grid { grid-template-columns: 1fr; }
+  .appointment-address-field { grid-column: auto; }
   .comparison-dialog,
   .analysis-results-dialog { width: calc(100vw - 10px); height: calc(100vh - 10px); max-height: calc(100vh - 10px); padding: 14px; }
   .analysis-steps { grid-template-columns: repeat(2, 1fr); }

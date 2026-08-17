@@ -69,6 +69,13 @@ const analysisGarments = {
 
 const comparisonState = { step: 1, garmentSignature: "", results: [], stats: null, config: null };
 
+function seedDate(daysFromToday) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromToday);
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 10);
+}
+
 function seedStore() {
   return {
     afterSaleStatusVersion: 2,
@@ -97,6 +104,13 @@ function seedStore() {
     ],
     measurements: [],
     subaccounts: [],
+    appointmentSlots: [
+      { id: "APS001", order_id: "ORDER001", address: "澳門門店 2 樓量體區", date: seedDate(3), start_time: "10:00", end_time: "12:00", max_bookings: 6, allow_overbook: false, status: "enabled" },
+      { id: "APS002", order_id: "ORDER001", address: "澳門門店 2 樓量體區", date: seedDate(3), start_time: "14:00", end_time: "17:00", max_bookings: 8, allow_overbook: true, status: "enabled" },
+    ],
+    appointments: [
+      { id: "APB001", slot_id: "APS001", employee_id: "EMP001", employee_name: "陳嘉儀", employee_unit: "澳門分部", order_id: "ORDER001", status: "booked", created_at: nowText() },
+    ],
     afterSales: [
       {
         id: "AS20260809001",
@@ -184,6 +198,7 @@ function loadStore() {
   }
   try {
     const loaded = { ...seedStore(), ...JSON.parse(raw) };
+    let changed = false;
     if (loaded.afterSaleStatusVersion !== 2) {
       loaded.afterSales = (loaded.afterSales || []).map((record) => ({
         ...record,
@@ -194,8 +209,15 @@ function loadStore() {
         })),
       }));
       loaded.afterSaleStatusVersion = 2;
-      saveStore(loaded);
+      changed = true;
     }
+    const fallbackOrderId = loaded.orders?.length === 1 ? loaded.orders[0].order_id : "";
+    loaded.appointmentSlots = (loaded.appointmentSlots || []).map((slot) => {
+      if (slot.order_id || !fallbackOrderId) return slot;
+      changed = true;
+      return { ...slot, order_id: fallbackOrderId };
+    });
+    if (changed) saveStore(loaded);
     return loaded;
   } catch {
     const seeded = seedStore();
@@ -280,7 +302,7 @@ function renderTable(targetId, headers, rows, emptyText = "暫無資料") {
 }
 
 function renderOrderSelect() {
-  const selects = [document.getElementById("employee-order-select"), document.getElementById("import-order-select")].filter(Boolean);
+  const selects = [document.getElementById("employee-order-select"), document.getElementById("import-order-select"), document.getElementById("appointment-order-select")].filter(Boolean);
   const store = loadStore();
   const orders = accessibleOrders(store);
   const options = orders.map((order) => `<option value="${order.order_id}">${order.order_id} / ${order.company_name}</option>`).join("");
@@ -723,6 +745,57 @@ function renderSubaccounts() {
   renderTable("subaccount-table", ["姓名", "登入賬號", "狀態", "最近登入", "操作"], rows, "暫無子賬號");
 }
 
+function appointmentBookings(store, slotId) {
+  return (store.appointments || []).filter((item) => item.slot_id === slotId && item.status === "booked");
+}
+
+function appointmentSlotTime(slot) {
+  return `${slot.date} ${slot.start_time}–${slot.end_time}`;
+}
+
+function renderAppointments() {
+  const store = loadStore();
+  const slots = [...(store.appointmentSlots || [])].sort((a, b) => `${a.date} ${a.start_time}`.localeCompare(`${b.date} ${b.start_time}`));
+  const totalBookings = (store.appointments || []).filter((item) => item.status === "booked").length;
+  const overbookedSlots = slots.filter((slot) => appointmentBookings(store, slot.id).length > Number(slot.max_bookings)).length;
+  document.getElementById("appointment-summary").innerHTML = `<div><span>已配置時段</span><strong>${slots.length}</strong></div><div><span>當前預約人次</span><strong>${totalBookings}</strong></div><div><span>超額時段</span><strong class="${overbookedSlots ? "is-warning" : ""}">${overbookedSlots}</strong></div>`;
+  const rows = slots.map((slot) => {
+    const booked = appointmentBookings(store, slot.id).length;
+    const overbooked = Math.max(0, booked - Number(slot.max_bookings));
+    const capacityText = `${booked} / ${slot.max_bookings}${overbooked ? `（超額 ${overbooked}）` : ""}`;
+    return `<tr><td>${escapeHtml(orderLabel(slot.order_id))}</td><td>${escapeHtml(slot.address)}</td><td>${escapeHtml(appointmentSlotTime(slot))}</td><td><strong class="${overbooked ? "capacity-over" : ""}">${capacityText}</strong></td><td>${slot.allow_overbook ? '<span class="status-pill is-pending">支持</span>' : "不支持"}</td><td><span class="status-pill ${slot.status === "enabled" ? "" : "is-disabled"}">${slot.status === "enabled" ? "開放中" : "已暫停"}</span></td><td><div class="row-actions"><button type="button" data-view-appointment-slot="${slot.id}">預約明細</button><button type="button" data-edit-appointment-slot="${slot.id}">編輯</button><button class="danger" type="button" data-delete-appointment-slot="${slot.id}">刪除</button></div></td></tr>`;
+  });
+  renderTable("appointment-slot-table", ["對應訂單", "預約地址", "服務時間", "已預約 / 最大值", "超額預約", "狀態", "操作"], rows, "暫無預約時段");
+}
+
+function openAppointmentSlotEditor(slot = null) {
+  const form = document.getElementById("appointment-slot-form");
+  form.reset();
+  form.elements.id.value = slot?.id || "";
+  form.elements.order_id.value = slot?.order_id || loadStore().orders[0]?.order_id || "";
+  form.elements.address.value = slot?.address || "";
+  form.elements.date.value = slot?.date || seedDate(1);
+  form.elements.start_time.value = slot?.start_time || "10:00";
+  form.elements.end_time.value = slot?.end_time || "12:00";
+  form.elements.max_bookings.value = slot?.max_bookings || 10;
+  form.elements.status.value = slot?.status || "enabled";
+  form.elements.allow_overbook.checked = Boolean(slot?.allow_overbook);
+  document.getElementById("appointment-slot-dialog-title").textContent = slot ? "編輯預約時段" : "新增預約時段";
+  document.getElementById("appointment-slot-error").hidden = true;
+  document.getElementById("appointment-slot-dialog").showModal();
+}
+
+function openAppointmentDetails(slotId) {
+  const store = loadStore();
+  const slot = (store.appointmentSlots || []).find((item) => item.id === slotId);
+  if (!slot) return;
+  const bookings = appointmentBookings(store, slotId).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  document.getElementById("appointment-detail-subtitle").textContent = `${orderLabel(slot.order_id)}｜${slot.address}｜${appointmentSlotTime(slot)}｜${bookings.length} / ${slot.max_bookings} 人`;
+  const rows = bookings.map((booking, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(booking.employee_id)}</td><td>${escapeHtml(booking.employee_name)}</td><td>${escapeHtml(booking.employee_unit || "-")}</td><td>${escapeHtml(booking.order_id || "-")}</td><td>${escapeHtml(booking.created_at)}</td></tr>`);
+  renderTable("appointment-detail-table", ["序號", "員工編號", "姓名", "單位", "訂單", "登記時間"], rows, "此時段暫無員工預約");
+  document.getElementById("appointment-detail-dialog").showModal();
+}
+
 function openSubaccountEditor(account = null) {
   const form = document.getElementById("subaccount-form");
   form.reset();
@@ -761,10 +834,11 @@ function renderAll() {
     renderTailors();
     renderOrders();
     renderAfterSales();
+    renderAppointments();
     renderSignatureDetails();
     renderSubaccounts();
   } else {
-    ["tailor-table", "order-table", "after-sale-table", "signature-table", "subaccount-table"].forEach((id) => { document.getElementById(id).innerHTML = ""; });
+    ["tailor-table", "order-table", "after-sale-table", "appointment-slot-table", "signature-table", "subaccount-table"].forEach((id) => { document.getElementById(id).innerHTML = ""; });
   }
   applyAccessPolicy();
 }
@@ -1618,6 +1692,50 @@ navButtons.forEach((button) => {
   button.addEventListener("click", () => switchView(button.dataset.view));
 });
 
+document.getElementById("open-appointment-slot-editor").addEventListener("click", () => openAppointmentSlotEditor());
+document.getElementById("appointment-slot-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form));
+  const store = loadStore();
+  const error = document.getElementById("appointment-slot-error");
+  const maxBookings = Number(data.max_bookings);
+  const allowOverbook = form.elements.allow_overbook.checked;
+  const existingBookings = data.id ? appointmentBookings(store, data.id).length : 0;
+  const orderExists = store.orders.some((order) => order.order_id === data.order_id);
+  const overlaps = (store.appointmentSlots || []).some((slot) => slot.id !== data.id && slot.order_id === data.order_id && slot.status === "enabled" && data.status === "enabled" && slot.address.trim().toLowerCase() === data.address.trim().toLowerCase() && slot.date === data.date && data.start_time < slot.end_time && data.end_time > slot.start_time);
+  let message = "";
+  if (!orderExists) message = "請選擇有效的對應訂單。";
+  else if (data.end_time <= data.start_time) message = "結束時間必須晚於開始時間。";
+  else if (!Number.isInteger(maxBookings) || maxBookings < 1) message = "可預約最大值必須是大於 0 的整數。";
+  else if (!allowOverbook && maxBookings < existingBookings) message = `此時段已有 ${existingBookings} 人預約；不支持超額時，最大值不可低於當前人數。`;
+  else if (overlaps) message = "同一地址在該日期已有重疊的開放時段，請調整服務時間。";
+  if (message) {
+    error.textContent = message;
+    error.hidden = false;
+    return;
+  }
+  const slot = {
+    id: data.id || uid("APS"),
+    order_id: data.order_id,
+    address: data.address.trim(),
+    date: data.date,
+    start_time: data.start_time,
+    end_time: data.end_time,
+    max_bookings: maxBookings,
+    allow_overbook: allowOverbook,
+    status: data.status,
+  };
+  store.appointmentSlots ||= [];
+  const index = store.appointmentSlots.findIndex((item) => item.id === slot.id);
+  if (index >= 0) store.appointmentSlots[index] = slot;
+  else store.appointmentSlots.push(slot);
+  saveStore(store);
+  document.getElementById("appointment-slot-dialog").close();
+  renderAll();
+  showToast(data.id ? "預約時段已更新。" : "預約時段已新增，員工端可立即查看。");
+});
+
 document.getElementById("open-after-sale-create").addEventListener("click", () => {
   resetAfterSaleForm();
   document.getElementById("after-sale-create-dialog").showModal();
@@ -1965,6 +2083,19 @@ document.body.addEventListener("click", (event) => {
   if (button.dataset.openArchive) openArchive(button.dataset.openArchive);
   if (button.dataset.followupRecord) openFollowupEditor(button.dataset.followupRecord);
   if (button.dataset.editSubaccount) openSubaccountEditor((store.subaccounts || []).find((account) => account.id === button.dataset.editSubaccount));
+  if (button.dataset.viewAppointmentSlot) openAppointmentDetails(button.dataset.viewAppointmentSlot);
+  if (button.dataset.editAppointmentSlot) openAppointmentSlotEditor((store.appointmentSlots || []).find((slot) => slot.id === button.dataset.editAppointmentSlot));
+  if (button.dataset.deleteAppointmentSlot) {
+    const booked = appointmentBookings(store, button.dataset.deleteAppointmentSlot).length;
+    if (booked) {
+      showToast(`此時段已有 ${booked} 人預約，請先暫停時段，不能直接刪除。`);
+    } else if (window.confirm("確定刪除此預約時段？")) {
+      store.appointmentSlots = (store.appointmentSlots || []).filter((slot) => slot.id !== button.dataset.deleteAppointmentSlot);
+      saveStore(store);
+      renderAll();
+      showToast("預約時段已刪除。");
+    }
+  }
   if (button.dataset.toggleSubaccount) {
     const account = (store.subaccounts || []).find((item) => item.id === button.dataset.toggleSubaccount);
     if (account) account.status = account.status === "enabled" ? "disabled" : "enabled";
@@ -1998,6 +2129,8 @@ document.body.addEventListener("click", (event) => {
   if (button.hasAttribute("data-close-archive")) document.getElementById("archive-dialog").close();
   if (button.hasAttribute("data-close-record-edit")) document.getElementById("record-edit-dialog").close();
   if (button.hasAttribute("data-close-subaccount")) document.getElementById("subaccount-dialog").close();
+  if (button.hasAttribute("data-close-appointment-slot")) document.getElementById("appointment-slot-dialog").close();
+  if (button.hasAttribute("data-close-appointment-detail")) document.getElementById("appointment-detail-dialog").close();
   if (button.hasAttribute("data-close-followup")) document.getElementById("followup-dialog").close();
   if (button.hasAttribute("data-close-import")) button.closest("dialog").close();
   if (button.hasAttribute("data-close-entity")) button.closest("dialog").close();
