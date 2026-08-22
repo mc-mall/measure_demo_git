@@ -540,6 +540,8 @@ body.calendar-open { overflow: hidden; }
 .appointment-modal-card { position: relative; width: min(100%, 360px); border-radius: 14px; padding: 26px 22px 20px; background: #fff; box-shadow: 0 24px 70px rgba(20, 32, 46, 0.24); text-align: center; }
 .appointment-modal-icon { width: 54px; height: 54px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center; background: #e7f6ef; color: var(--green); font-size: 29px; font-weight: 900; }
 .appointment-modal-card strong { display: block; color: #096c4e; font-size: 21px; }
+.appointment-modal[data-tone="notice"] .appointment-modal-icon { background: #e8f2fb; color: var(--blue); }
+.appointment-modal[data-tone="notice"] .appointment-modal-card > strong { color: var(--blue-dark); }
 .appointment-modal-card p { margin: 9px 0 20px; color: var(--muted); font-size: 14px; line-height: 1.6; }
 .appointment-modal-card button { width: 100%; }
 
