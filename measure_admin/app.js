@@ -14,6 +14,7 @@ const afterSalePagination = { page: 1, pageSize: 15 };
 const orderEditorState = { step: 1, garments: [], quantityRules: [] };
 const signatureDetailState = { orderId: "", page: 1, pageSize: 15 };
 const afterSaleFormState = { employeeId: "" };
+const appointmentSelection = new Set();
 let currentUser = readSessionUser();
 
 const measurementLabels = {
@@ -753,6 +754,28 @@ function appointmentSlotTime(slot) {
   return `${slot.date} ${slot.start_time}–${slot.end_time}`;
 }
 
+function appointmentBookingGender(store, booking) {
+  if (booking.employee_gender) return booking.employee_gender;
+  const employee = (store.employees || []).find((item) => item.employee_id === booking.employee_id && (!booking.order_id || item.order_id === booking.order_id));
+  return employee?.gender || "-";
+}
+
+function updateAppointmentSelection(slots = loadStore().appointmentSlots || []) {
+  const validIds = new Set(slots.map((slot) => slot.id));
+  [...appointmentSelection].forEach((slotId) => {
+    if (!validIds.has(slotId)) appointmentSelection.delete(slotId);
+  });
+  const checkboxes = [...document.querySelectorAll(".appointment-slot-check")];
+  const checkAll = document.getElementById("appointment-check-all");
+  if (checkAll) {
+    checkAll.checked = checkboxes.length > 0 && checkboxes.every((input) => input.checked);
+    checkAll.indeterminate = checkboxes.some((input) => input.checked) && !checkAll.checked;
+  }
+  const count = appointmentSelection.size;
+  document.getElementById("appointment-selected-count").textContent = `已選 ${count} 個時段`;
+  document.getElementById("export-appointment-details").disabled = count === 0;
+}
+
 function renderAppointments() {
   const store = loadStore();
   const slots = [...(store.appointmentSlots || [])].sort((a, b) => `${a.date} ${a.start_time}`.localeCompare(`${b.date} ${b.start_time}`));
@@ -763,9 +786,10 @@ function renderAppointments() {
     const booked = appointmentBookings(store, slot.id).length;
     const overbooked = Math.max(0, booked - Number(slot.max_bookings));
     const capacityText = `${booked} / ${slot.max_bookings}${overbooked ? `（超額 ${overbooked}）` : ""}`;
-    return `<tr><td>${escapeHtml(orderLabel(slot.order_id))}</td><td>${escapeHtml(slot.address)}</td><td>${escapeHtml(appointmentSlotTime(slot))}</td><td><strong class="${overbooked ? "capacity-over" : ""}">${capacityText}</strong></td><td>${slot.allow_overbook ? '<span class="status-pill is-pending">支持</span>' : "不支持"}</td><td><span class="status-pill ${slot.status === "enabled" ? "" : "is-disabled"}">${slot.status === "enabled" ? "開放中" : "已暫停"}</span></td><td><div class="row-actions"><button type="button" data-view-appointment-slot="${slot.id}">預約明細</button><button type="button" data-edit-appointment-slot="${slot.id}">編輯</button><button class="danger" type="button" data-delete-appointment-slot="${slot.id}">刪除</button></div></td></tr>`;
+    return `<tr><td><input class="appointment-slot-check" type="checkbox" value="${escapeHtml(slot.id)}" aria-label="選擇 ${escapeHtml(appointmentSlotTime(slot))}" ${appointmentSelection.has(slot.id) ? "checked" : ""} /></td><td>${escapeHtml(orderLabel(slot.order_id))}</td><td>${escapeHtml(slot.address)}</td><td>${escapeHtml(appointmentSlotTime(slot))}</td><td><strong class="${overbooked ? "capacity-over" : ""}">${capacityText}</strong></td><td>${slot.allow_overbook ? '<span class="status-pill is-pending">支持</span>' : "不支持"}</td><td><span class="status-pill ${slot.status === "enabled" ? "" : "is-disabled"}">${slot.status === "enabled" ? "開放中" : "已暫停"}</span></td><td><div class="row-actions"><button type="button" data-view-appointment-slot="${slot.id}">預約明細</button><button type="button" data-edit-appointment-slot="${slot.id}">編輯</button><button class="danger" type="button" data-delete-appointment-slot="${slot.id}">刪除</button></div></td></tr>`;
   });
-  renderTable("appointment-slot-table", ["對應訂單", "預約地址", "服務時間", "已預約 / 最大值", "超額預約", "狀態", "操作"], rows, "暫無預約時段");
+  renderTable("appointment-slot-table", [`<label class="table-check-all"><input id="appointment-check-all" type="checkbox" aria-label="勾選全部時段" ${slots.length ? "" : "disabled"} /><span>選擇</span></label>`, "對應訂單", "預約地址", "服務時間", "已預約 / 最大值", "超額預約", "狀態", "操作"], rows, "暫無預約時段");
+  updateAppointmentSelection(slots);
 }
 
 function openAppointmentSlotEditor(slot = null) {
@@ -791,9 +815,34 @@ function openAppointmentDetails(slotId) {
   if (!slot) return;
   const bookings = appointmentBookings(store, slotId).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
   document.getElementById("appointment-detail-subtitle").textContent = `${orderLabel(slot.order_id)}｜${slot.address}｜${appointmentSlotTime(slot)}｜${bookings.length} / ${slot.max_bookings} 人`;
-  const rows = bookings.map((booking, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(booking.employee_id)}</td><td>${escapeHtml(booking.employee_name)}</td><td>${escapeHtml(booking.employee_unit || "-")}</td><td>${escapeHtml(booking.order_id || "-")}</td><td>${escapeHtml(booking.created_at)}</td></tr>`);
-  renderTable("appointment-detail-table", ["序號", "員工編號", "姓名", "單位", "訂單", "登記時間"], rows, "此時段暫無員工預約");
+  const rows = bookings.map((booking, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(booking.employee_id)}</td><td>${escapeHtml(booking.employee_name)}</td><td>${escapeHtml(appointmentBookingGender(store, booking))}</td><td>${escapeHtml(booking.employee_unit || "-")}</td><td>${escapeHtml(booking.order_id || "-")}</td><td>${escapeHtml(booking.created_at)}</td></tr>`);
+  renderTable("appointment-detail-table", ["序號", "員工編號", "姓名", "性別", "單位", "訂單", "登記時間"], rows, "此時段暫無員工預約");
   document.getElementById("appointment-detail-dialog").showModal();
+}
+
+function exportAppointmentDetails() {
+  const store = loadStore();
+  const selectedSlots = (store.appointmentSlots || [])
+    .filter((slot) => appointmentSelection.has(slot.id))
+    .sort((a, b) => `${a.date} ${a.start_time}`.localeCompare(`${b.date} ${b.start_time}`));
+  if (!selectedSlots.length) {
+    showToast("請先勾選需要導出明細的預約時段。");
+    return;
+  }
+  const rows = selectedSlots.flatMap((slot) => appointmentBookings(store, slot.id)
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+    .map((booking, index) => {
+      const order = (store.orders || []).find((item) => item.order_id === slot.order_id);
+      return [slot.id, slot.order_id, order?.company_name || "", slot.address, slot.date, slot.start_time, slot.end_time, index + 1, booking.employee_id, booking.employee_name, appointmentBookingGender(store, booking), booking.employee_unit || "", booking.created_at];
+    }));
+  if (!rows.length) {
+    showToast("所選時段暫無預約明細，未生成導出文件。");
+    return;
+  }
+  const headers = ["時段編號", "訂單號", "公司名", "預約地址", "服務日期", "開始時間", "結束時間", "時段內序號", "員工編號", "姓名", "性別", "單位", "登記時間"];
+  const lines = [headers, ...rows].map((row) => row.map(csvEscape).join(","));
+  downloadCsvBlob(new Blob([`\ufeff${lines.join("\n")}`], { type: "text/csv;charset=utf-8" }), `預約明細_${new Date().toISOString().slice(0, 10)}.csv`);
+  showToast(`已導出 ${selectedSlots.length} 個時段，共 ${rows.length} 條預約明細。`);
 }
 
 function openSubaccountEditor(account = null) {
@@ -1693,6 +1742,22 @@ navButtons.forEach((button) => {
 });
 
 document.getElementById("open-appointment-slot-editor").addEventListener("click", () => openAppointmentSlotEditor());
+document.getElementById("export-appointment-details").addEventListener("click", exportAppointmentDetails);
+document.getElementById("appointment-slot-table").addEventListener("change", (event) => {
+  if (event.target.id === "appointment-check-all") {
+    document.querySelectorAll(".appointment-slot-check").forEach((input) => {
+      input.checked = event.target.checked;
+      if (event.target.checked) appointmentSelection.add(input.value);
+      else appointmentSelection.delete(input.value);
+    });
+    updateAppointmentSelection();
+    return;
+  }
+  if (!event.target.matches(".appointment-slot-check")) return;
+  if (event.target.checked) appointmentSelection.add(event.target.value);
+  else appointmentSelection.delete(event.target.value);
+  updateAppointmentSelection();
+});
 document.getElementById("appointment-slot-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = event.currentTarget;

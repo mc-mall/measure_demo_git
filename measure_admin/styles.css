@@ -290,6 +290,9 @@ button {
 .list-toolbar h3, .list-toolbar p { margin: 0; }
 .list-toolbar p { margin-top: 6px; }
 .list-toolbar > .row-actions { flex-wrap: wrap; justify-content: flex-end; }
+.appointment-toolbar-actions { align-items: center; }
+.appointment-toolbar-actions > span { color: var(--muted); font-size: 13px; font-weight: 900; white-space: nowrap; }
+.appointment-toolbar-actions button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 .import-panel h3,
 .import-panel p {
@@ -359,7 +362,7 @@ button {
 .pagination-size span { white-space: nowrap; }
 .pagination-size select { min-height: 36px; padding: 0 28px 0 9px; }
 .table-check-all { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
-.table-check-all input { width: 16px; height: 16px; min-height: auto; }
+.table-check-all input, .appointment-slot-check { width: 16px; height: 16px; min-height: auto; }
 
 .pagination button:disabled {
   cursor: not-allowed;

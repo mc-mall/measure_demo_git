@@ -154,8 +154,8 @@ function renderClientOrders() {
     <article class="client-order-card">
       <div><span>訂單 / 項目</span><strong>${escapeClientHtml(order.order_id)}</strong><p>${escapeClientHtml(order.company_name)}</p></div>
       <div class="button-row">
-        <button class="secondary-action" type="button" data-open-confirmation>服裝確認</button>
-        <button class="primary-action" type="button" data-open-appointment="${escapeClientHtml(order.order_id)}">量體預約</button>
+        <button class="secondary-action" type="button" data-open-confirmation>訂購數量</button>
+        <button class="primary-action" type="button" data-open-appointment="${escapeClientHtml(order.order_id)}">量體&改衫</button>
       </div>
     </article>`).join("") : '<div class="empty-state"><strong>暫無可選訂單</strong><span>請聯絡工作人員核對員工的歸屬訂單。</span></div>';
 

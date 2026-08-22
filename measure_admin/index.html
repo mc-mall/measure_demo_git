@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260817-appointments" />
+    <link rel="stylesheet" href="./styles.css?v=20260822-appointment-export" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -144,7 +144,11 @@
         <section class="view" id="view-appointments">
           <div class="panel list-toolbar">
             <div><h3>預約時段</h3><p>配置退換重新量體的服務地址、服務時間與接待容量，供員工端直接登記。</p></div>
-            <button type="button" id="open-appointment-slot-editor">新增時段</button>
+            <div class="row-actions appointment-toolbar-actions">
+              <span id="appointment-selected-count">已選 0 個時段</span>
+              <button class="secondary" type="button" id="export-appointment-details" disabled>導出明細</button>
+              <button type="button" id="open-appointment-slot-editor">新增時段</button>
+            </div>
           </div>
           <div class="panel appointment-summary" id="appointment-summary"></div>
           <div class="panel table-wrap"><table id="appointment-slot-table"></table></div>
@@ -425,6 +429,6 @@
       <div class="analysis-result-toolbar"><label><span>搜尋員工</span><input id="analysis-result-search" type="search" placeholder="員工編號或姓名" /></label><button class="secondary" type="button" id="export-analysis-results">導出分析結果</button></div>
       <div class="table-wrap"><table id="analysis-result-table"></table></div>
     </dialog>
-    <script src="./app.js?v=20260817-appointments"></script>
+    <script src="./app.js?v=20260822-appointment-export"></script>
   </body>
 </html>
