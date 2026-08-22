@@ -177,6 +177,13 @@ function clientAppointmentTime(slot) {
   return `${slot.date} ${slot.start_time}–${slot.end_time}`;
 }
 
+function employeeBookedAppointments(store, orderId) {
+  if (!currentEmployee) return [];
+  const orderSlots = (store?.appointmentSlots || []).filter((slot) => clientSlotOrderId(slot, store) === orderId);
+  const slotIds = new Set(orderSlots.map((slot) => slot.id));
+  return (store?.appointments || []).filter((item) => item.employee_id === currentEmployee.employeeId && item.status === "booked" && (item.order_id === orderId || slotIds.has(item.slot_id)));
+}
+
 function clientSlotOrderId(slot, store) {
   if (slot.order_id) return slot.order_id;
   return store?.orders?.length === 1 ? store.orders[0].order_id : "";
@@ -215,10 +222,13 @@ function renderAppointmentCalendar(dates) {
   </div>`;
 }
 
-function showAppointmentModal(title, message) {
+function showAppointmentModal(title, message, tone = "success", buttonLabel = "知道了") {
   const modal = document.getElementById("appointment-modal");
   document.getElementById("appointment-modal-title").textContent = title;
   document.getElementById("appointment-modal-message").textContent = message;
+  modal.dataset.tone = tone;
+  modal.querySelector(".appointment-modal-icon").textContent = tone === "notice" ? "i" : "✓";
+  modal.querySelector("button[data-close-appointment-modal]").textContent = buttonLabel;
   modal.hidden = false;
   document.body.classList.add("modal-open");
   modal.querySelector("button[data-close-appointment-modal]").focus();
@@ -227,6 +237,28 @@ function showAppointmentModal(title, message) {
 function closeAppointmentModal() {
   document.getElementById("appointment-modal").hidden = true;
   document.body.classList.remove("modal-open");
+}
+
+function showExistingAppointmentNotice(orderId) {
+  const store = loadSharedAdminStore();
+  const appointments = employeeBookedAppointments(store, orderId);
+  if (!appointments.length) return;
+  const details = appointments.map((booking) => {
+    const slot = (store?.appointmentSlots || []).find((item) => item.id === booking.slot_id);
+    return slot ? `${slot.address} / ${clientAppointmentTime(slot)}` : `${booking.order_id || orderId} / 預約時段已調整`;
+  });
+  showAppointmentModal("已有預約", `你已預約：${details.join("；")}。如需修改，請先取消再重新預約。`, "notice", "關閉窗口");
+}
+
+function openAppointmentView(orderId = selectedAppointmentOrderId || currentEmployee?.orderId || "") {
+  selectedAppointmentOrderId = orderId;
+  appointmentSelectorState.address = "";
+  appointmentSelectorState.date = "";
+  appointmentSelectorState.slotId = "";
+  appointmentSelectorState.calendarMonth = "";
+  appointmentSelectorState.calendarOpen = false;
+  switchView("appointments");
+  showExistingAppointmentNotice(orderId);
 }
 
 function renderClientAppointments() {
@@ -244,8 +276,7 @@ function renderClientAppointments() {
   const appointmentOrder = getClientOrders().find((order) => order.order_id === appointmentOrderId);
   profile.innerHTML = `<div><span>預約員工</span><strong>${escapeClientHtml(currentEmployee.employeeId)} · ${escapeClientHtml(currentEmployee.name)}</strong></div><div><span>對應訂單</span><strong>${escapeClientHtml(appointmentOrderId)}${appointmentOrder ? ` · ${escapeClientHtml(appointmentOrder.company_name)}` : ""}</strong></div>`;
   const orderSlots = [...(store?.appointmentSlots || [])].filter((slot) => clientSlotOrderId(slot, store) === appointmentOrderId);
-  const slotIds = new Set(orderSlots.map((slot) => slot.id));
-  const myAppointments = (store?.appointments || []).filter((item) => item.employee_id === currentEmployee.employeeId && item.status === "booked" && (item.order_id === appointmentOrderId || slotIds.has(item.slot_id)));
+  const myAppointments = employeeBookedAppointments(store, appointmentOrderId);
   const availableSlots = orderSlots.filter((slot) => {
     if (slot.status !== "enabled") return false;
     if (myAppointments.some((item) => item.slot_id === slot.id)) return false;
@@ -550,7 +581,10 @@ function validateSku() {
 }
 
 tabs.forEach((tab) => {
-  tab.addEventListener("click", () => switchView(tab.dataset.view));
+  tab.addEventListener("click", () => {
+    if (tab.dataset.view === "appointments") openAppointmentView();
+    else switchView(tab.dataset.view);
+  });
 });
 
 document.querySelectorAll("[data-jump]").forEach((button) => {
@@ -595,13 +629,7 @@ document.getElementById("client-order-cards").addEventListener("click", (event) 
   }
   const appointmentButton = event.target.closest("[data-open-appointment]");
   if (appointmentButton) {
-    selectedAppointmentOrderId = appointmentButton.dataset.openAppointment;
-    appointmentSelectorState.address = "";
-    appointmentSelectorState.date = "";
-    appointmentSelectorState.slotId = "";
-    appointmentSelectorState.calendarMonth = "";
-    appointmentSelectorState.calendarOpen = false;
-    switchView("appointments");
+    openAppointmentView(appointmentButton.dataset.openAppointment);
     return;
   }
   if (event.target.closest("[data-open-confirmation]")) {
