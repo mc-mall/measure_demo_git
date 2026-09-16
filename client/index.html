@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>MC 客戶端 H5 服裝需求確認 Demo</title>
-    <link rel="stylesheet" href="./styles.css?v=20260822-existing-appointment-notice" />
+    <link rel="stylesheet" href="./styles.css?v=20260916-multi-receipt" />
   </head>
   <body>
     <main class="app-shell">
@@ -93,6 +93,12 @@
           </div>
           <div class="after-sale-records" id="client-after-sale-records"></div>
         </div>
+      </section>
+
+      <section class="view" id="view-after-sale-detail" aria-labelledby="after-sale-detail-title">
+        <button type="button" class="secondary-action after-sale-back" data-back-after-sales>‹ 返回申請列表</button>
+        <div class="section-head"><p class="section-kicker">After-sales Detail</p><h1 id="after-sale-detail-title" tabindex="-1">售後申請詳情</h1></div>
+        <div id="client-after-sale-detail"></div>
       </section>
 
       <section class="view" id="view-flow" aria-labelledby="flow-title">
@@ -333,6 +339,8 @@
       </div>
     </div>
 
-    <script src="./app.js?v=20260822-existing-appointment-notice"></script>
+    <dialog id="client-after-sale-dialog" class="return-dialog"><form id="client-after-sale-form"><div class="return-dialog-head"><h2>提交售後</h2><button type="button" class="secondary-action" data-close-client-after-sale>關閉</button></div><p>選擇退換服裝、數量及修改要求。提交後請到門市退還，由門市同事現場簽收。</p><div id="client-return-items"></div><label>補充說明<textarea id="client-return-remark" rows="2" maxlength="1000"></textarea></label><p id="client-after-sale-error" role="alert"></p><button id="submit-client-after-sale" class="primary-action" type="submit">提交申請</button></form></dialog>
+    <script src="../shared/workflow.js?v=20260916-multi-receipt"></script>
+    <script src="./app.js?v=20260916-multi-receipt"></script>
   </body>
 </html>

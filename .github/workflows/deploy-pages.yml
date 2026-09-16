@@ -30,8 +30,9 @@ jobs:
 
       - name: Build static artifact
         run: |
-          mkdir -p _site/measure_admin _site/tailor _site/client
+          mkdir -p _site/measure_admin _site/tailor _site/client _site/shared
           cp index.html _site/index.html
+          cp shared/workflow.js _site/shared/
           cp measure_admin/index.html measure_admin/app.js measure_admin/styles.css _site/measure_admin/
           cp tailor/index.html tailor/app.js tailor/styles.css _site/tailor/
           cp client/index.html client/app.js client/styles.css _site/client/
