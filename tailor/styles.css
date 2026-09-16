@@ -600,3 +600,19 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+.appointment-entry { padding: 12px 18px 0; }
+.appointment-entry button { width: 100%; }
+#appointments-dialog { width: min(540px, calc(100% - 24px)); max-height: calc(100dvh - 32px); padding: 18px; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--page); overflow-y: auto; overscroll-behavior: contain; }
+#appointments-dialog::backdrop { background: rgb(23 33 47 / 48%); }
+.appointment-heading, .appointment-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.appointment-heading h2 { font-size: 20px; margin: 0; }
+.appointment-heading button { flex-shrink: 0; }
+.appointment-filters { margin: 16px 0; }
+.appointment-filters .field, .appointment-filters input, .appointment-filters select { min-width: 0; width: 100%; }
+.appointment-tools { justify-content: flex-start; }
+#appointment-counts { font-weight: 700; }
+.appointment-empty { padding: 24px 12px; color: var(--muted); text-align: center; line-height: 1.6; }
+@media (max-width: 360px) { .appointment-filters { grid-template-columns: 1fr; } }
+
+.appointment-names { margin: 10px 0 0; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; }

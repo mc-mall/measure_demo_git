@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>MC 量體資料收集</title>
-    <link rel="stylesheet" href="./styles.css?v=20260916-multi-receipt" />
+    <link rel="stylesheet" href="./styles.css?v=20260916-appointment-names" />
   </head>
   <body>
     <main class="app-shell">
@@ -18,6 +18,8 @@
         </div>
         <div class="session-chip" id="session-chip">未登入</div>
       </header>
+
+      <div class="appointment-entry" id="appointment-entry" hidden><button type="button" class="secondary-action" id="open-appointments">預約明細 · 查看待量身人員</button></div>
 
       <ol class="stepper" id="stepper" aria-label="量體步驟">
         <li class="is-current">登入</li>
@@ -226,10 +228,24 @@
         <button class="primary-action" type="button" id="new-record">錄入下一筆</button>
       </section>
 
+      <dialog id="appointments-dialog" aria-labelledby="appointments-title">
+        <div class="appointment-heading"><h2 id="appointments-title">預約明細</h2><button type="button" class="secondary-action" id="close-appointments">返回量身</button></div>
+        <p class="measure-hint">查看名單不會改動正在填寫的量體資料。已取消預約不計入。</p>
+        <div class="field-grid appointment-filters">
+          <label class="field"><span>預約日期</span><input type="date" id="appointment-date" /></label>
+          <label class="field"><span>訂單 / 項目</span><select id="appointment-order"></select></label>
+          <label class="field"><span>時段 / 地址</span><select id="appointment-slot"></select></label>
+          <label class="field"><span>量身狀態</span><select id="appointment-status"><option value="all">全部</option><option value="pending">待量身</option><option value="done">已量身</option></select></label>
+        </div>
+        <div class="appointment-tools"><button type="button" class="secondary-action" id="appointments-today">今天</button><button type="button" class="secondary-action" id="appointments-refresh">刷新名單</button></div>
+        <p id="appointment-counts" role="status"></p>
+        <p class="measure-hint">已量身：同一訂單及員工於預約當天、登記預約後已有提交記錄；可早於或晚於預約時段。</p>
+        <div id="appointment-list"></div>
+      </dialog>
       <div class="toast" id="toast" hidden></div>
     </main>
 
-    <script src="../shared/workflow.js?v=20260916-multi-receipt"></script>
-    <script src="./app.js?v=20260916-multi-receipt"></script>
+    <script src="../shared/workflow.js?v=20260916-appointment-names"></script>
+    <script src="./app.js?v=20260916-appointment-names"></script>
   </body>
 </html>

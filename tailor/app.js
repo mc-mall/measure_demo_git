@@ -520,6 +520,7 @@ function currentFlowIndex(pageId = state.page) {
 
 function setPage(pageId) {
   state.page = pageId;
+  document.getElementById("appointment-entry").hidden = pageId === 0 || !state.token || shouldUseServerApi();
   pages.forEach((page) => page.classList.toggle("is-active", Number(page.dataset.page) === pageId));
   const activeIndex = currentFlowIndex(pageId);
   steps.forEach((step, stepIndex) => {
@@ -941,3 +942,70 @@ document.getElementById("new-record").addEventListener("click", resetForNextReco
 renderFields();
 configureFlowForEmployee();
 setPage(0);
+
+// Read-only appointment companion; never changes employee selection or form state.
+function appointmentEscape(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[char]));
+}
+function appointmentTime(value) {
+  const raw = String(value || "").trim().replace(" ", "T");
+  return raw ? Date.parse(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw) ? raw : `${raw}+08:00`) : NaN;
+}
+function appointmentRows(store, date, orderId) {
+  const slots = (store.appointmentSlots || []).filter(slot => slot.date === date && (!orderId || slot.order_id === orderId));
+  return (store.appointments || []).filter(booking => booking.status === "booked").flatMap(booking => {
+    const slot = slots.find(item => item.id === booking.slot_id && item.order_id === booking.order_id);
+    if (!slot) return [];
+    const employee = (store.employees || []).find(item => item.employee_id === booking.employee_id && item.order_id === booking.order_id);
+    const start = appointmentTime(`${slot.date}T00:00:00`);
+    const bookedAt = appointmentTime(booking.created_at);
+    const measurement = (store.measurements || []).filter(item => {
+      const at = appointmentTime(item.measured_at || item.measurement_date || item.measure_date);
+      return item.employee?.employee_id === booking.employee_id && item.employee?.order_id === booking.order_id && at >= start && at < start + 86400000 && Number.isFinite(bookedAt) && at >= bookedAt;
+    }).sort((a, b) => appointmentTime(b.measured_at || b.measurement_date || b.measure_date) - appointmentTime(a.measured_at || a.measurement_date || a.measure_date))[0];
+    return [{booking, slot, employee, measurement}];
+  }).sort((a, b) => `${a.slot.start_time}${a.booking.created_at}`.localeCompare(`${b.slot.start_time}${b.booking.created_at}`));
+}
+const appointmentsDialog = document.getElementById("appointments-dialog");
+const appointmentDate = document.getElementById("appointment-date");
+const appointmentOrder = document.getElementById("appointment-order");
+const appointmentSlot = document.getElementById("appointment-slot");
+const appointmentStatus = document.getElementById("appointment-status");
+function appointmentToday() {
+  return beijingNowWithSeconds().slice(0, 10);
+}
+function renderAppointments() {
+  const store = loadAdminStore() || {};
+  const selectedOrder = appointmentOrder.value;
+  const orders = store.orders || [];
+  appointmentOrder.innerHTML = '<option value="">全部訂單</option>' + orders.map(order => `<option value="${appointmentEscape(order.order_id)}">${appointmentEscape(order.order_id)} / ${appointmentEscape(order.company_name)}</option>`).join("");
+  appointmentOrder.value = orders.some(order => order.order_id === selectedOrder) ? selectedOrder : "";
+  const slots = (store.appointmentSlots || []).filter(slot => slot.date === appointmentDate.value && (!appointmentOrder.value || slot.order_id === appointmentOrder.value)).sort((a,b) => a.start_time.localeCompare(b.start_time));
+  const selectedSlot = appointmentSlot.value;
+  appointmentSlot.innerHTML = '<option value="">全天 · 全部時段</option>' + slots.map(slot => `<option value="${appointmentEscape(slot.id)}">${appointmentEscape(slot.start_time)}–${appointmentEscape(slot.end_time)} / ${appointmentEscape(slot.address)} / ${appointmentEscape(slot.order_id)}</option>`).join("");
+  appointmentSlot.value = slots.some(slot => slot.id === selectedSlot) ? selectedSlot : "";
+  const rows = appointmentRows(store, appointmentDate.value, appointmentOrder.value).filter(row => !appointmentSlot.value || row.slot.id === appointmentSlot.value);
+  const done = rows.filter(row => row.measurement).length;
+  document.getElementById("appointment-counts").textContent = `預約 ${rows.length} 人次 · 待量身 ${rows.length - done} · 已量身 ${done}`;
+  const visible = rows.filter(row => appointmentStatus.value === "all" || Boolean(row.measurement) === (appointmentStatus.value === "done"));
+  document.getElementById("appointment-list").innerHTML = visible.length
+    ? `<p class="appointment-names">${visible.map(({booking, employee}) => `${appointmentEscape(booking.employee_id)} ${appointmentEscape(employee?.name || booking.employee_name || "未填寫姓名")}`).join("；")}</p>`
+    : '<p class="appointment-empty">目前條件下沒有預約人員，可切換日期、訂單或狀態查看。</p>';
+}
+document.getElementById("open-appointments").addEventListener("click", () => {
+  if (!appointmentDate.value) appointmentDate.value = appointmentToday();
+  renderAppointments();
+  appointmentsDialog.showModal();
+});
+document.getElementById("close-appointments").addEventListener("click", () => appointmentsDialog.close());
+[appointmentDate, appointmentOrder, appointmentSlot, appointmentStatus].forEach(control => control.addEventListener("change", renderAppointments));
+document.getElementById("appointments-refresh").addEventListener("click", renderAppointments);
+document.getElementById("appointments-today").addEventListener("click", () => {
+  appointmentDate.value = appointmentToday();
+  appointmentSlot.value = "";
+  renderAppointments();
+});
+window.addEventListener("storage", event => {
+  if ((event.key === adminStoreKey || event.key === null) && appointmentsDialog.open) renderAppointments();
+});
+window.addEventListener("focus", () => { if (appointmentsDialog.open) renderAppointments(); });
