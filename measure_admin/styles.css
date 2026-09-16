@@ -718,3 +718,13 @@ td {
   .analysis-results-dialog .table-wrap { overflow-x: auto; }
   .analysis-results-dialog table { min-width: 900px; }
 }
+
+.receipt-panel { display: grid; gap: 12px; margin-top: 18px; padding: 16px; background: #f4f7f9; border-radius: 10px; }
+.receipt-panel label { display: block; line-height: 1.7; }
+.receipt-panel input:not([type=checkbox]), .receipt-panel textarea { display: block; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #d7e0e5; border-radius: 8px; }
+#order-progress-content td { white-space: normal; min-width: 140px; }
+[hidden] { display: none !important; }
+
+.receipt-panel h4, .receipt-panel p { margin: 0; }
+.receipt-panel .receipt-check { display: flex; align-items: center; gap: 8px; }
+.receipt-panel .receipt-check input { flex: 0 0 auto; width: auto; margin: 0; }

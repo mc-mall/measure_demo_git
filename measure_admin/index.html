@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260822-appointment-export" />
+    <link rel="stylesheet" href="./styles.css?v=20260916-multi-receipt" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -39,7 +39,7 @@
           <button type="button" data-view="tailors" data-owner-only>裁縫師管理</button>
           <button type="button" data-view="orders" data-owner-only>訂單管理</button>
           <button type="button" data-view="employees">員工管理</button>
-          <button type="button" data-view="after-sales" data-owner-only>退換登記</button>
+          <button type="button" data-view="after-sales">售後管理</button>
           <button type="button" data-view="appointments" data-owner-only>預約管理</button>
           <button type="button" data-view="records-male">男士量體記錄</button>
           <button type="button" data-view="records-female">女士量體記錄</button>
@@ -122,19 +122,19 @@
 
         <section class="view" id="view-after-sales">
           <div class="panel list-toolbar">
-            <div><h3>退換登記</h3><p>登記員工提出的換貨或服裝修改需求；已完成後本輪結束，二次修改請重新登記。</p></div>
-            <button type="button" id="open-after-sale-create">新建售後</button>
+            <div><h3>售後管理</h3><p>員工提交售後 → 門市現場簽收 → 工廠處理 → 完成派送。</p></div>
+            <button type="button" id="export-after-sales">導出篩選明細</button>
           </div>
           <div class="panel after-sale-filters">
             <label><span>員工 / 登記編號</span><input id="after-sale-filter-keyword" type="search" placeholder="員工編號、姓名或登記編號" /></label>
             <label><span>單位名稱</span><input id="after-sale-filter-unit" type="search" placeholder="搜尋單位名稱" /></label>
             <div class="after-sale-date-filter"><span>登記時間</span><div><input id="after-sale-filter-start" type="date" aria-label="登記開始日期" /><em>至</em><input id="after-sale-filter-end" type="date" aria-label="登記結束日期" /></div></div>
-            <label><span>需求狀態</span><select id="after-sale-filter-status"><option value="">全部狀態</option><option>已登記</option><option>已處理</option><option>已完成</option></select></label>
+            <label><span>需求狀態</span><select id="after-sale-filter-status"><option value="">全部狀態</option><option>提交售後</option><option>門市收貨</option><option>已下單到工廠</option><option>工廠交付，待派送</option><option>完成派送</option><option>已關閉</option></select></label>
             <button class="secondary" type="button" id="clear-after-sale-filters">清除篩選</button>
           </div>
           <div class="panel after-sale-batch-bar">
             <span id="after-sale-selected-count">已選 0 項</span>
-            <label><span>批量修改狀態</span><select id="after-sale-batch-status"><option value="">請選擇</option><option>已登記</option><option>已處理</option><option>已完成</option></select></label>
+            <label><span>批量推進工廠 / 派送階段</span><select id="after-sale-batch-status"><option value="">請選擇</option><option>已下單到工廠</option><option>工廠交付，待派送</option><option>完成派送</option></select></label>
             <button type="button" id="apply-after-sale-status">確認修改</button>
           </div>
           <div class="panel table-wrap"><table id="after-sale-table"></table></div>
@@ -143,7 +143,7 @@
 
         <section class="view" id="view-appointments">
           <div class="panel list-toolbar">
-            <div><h3>預約時段</h3><p>配置退換重新量體的服務地址、服務時間與接待容量，供員工端直接登記。</p></div>
+            <div><h3>預約時段</h3><p>配置量身服務地址、服務時間與接待容量，供員工端直接登記。</p></div>
             <div class="row-actions appointment-toolbar-actions">
               <span id="appointment-selected-count">已選 0 個時段</span>
               <button class="secondary" type="button" id="export-appointment-details" disabled>導出明細</button>
@@ -195,6 +195,7 @@
       </section>
     </main>
 
+    <dialog class="archive-dialog" id="order-progress-dialog"><div class="dialog-head"><h3>員工訂單執行進度</h3><button type="button" onclick="this.closest('dialog').close()">關閉</button></div><p>服裝確認、預約與量身由業務操作更新；完成量身後可依序推進工廠及交付階段。</p><div class="table-wrap" id="order-progress-content"></div></dialog>
     <div class="toast" id="toast" hidden></div>
     <dialog class="archive-dialog" id="archive-dialog">
       <div class="dialog-head"><div><h3 id="archive-title">員工量體檔案</h3><p id="archive-subtitle"></p></div><button class="secondary" type="button" data-close-archive>關閉</button></div>
@@ -319,6 +320,7 @@
         <fieldset class="permission-fieldset"><legend>功能權限</legend>
           <label><input type="checkbox" name="permission" value="employee_view" checked /><span>查看員工及量體檔案</span></label>
           <label><input type="checkbox" name="permission" value="measurement_followup" checked /><span>更新量體事項跟進狀態與備註</span></label>
+          <label><input type="checkbox" name="permission" value="after_sales" /><span>售後管理：簽收、關閉服裝及推進狀態</span></label>
           <label><input type="checkbox" name="permission" value="record_export" /><span>導出量體記錄</span></label>
         </fieldset>
         <p class="form-error" id="subaccount-form-error" hidden></p>
@@ -357,24 +359,6 @@
         </div>
         <label class="followup-note"><span>跟進備註</span><textarea name="followup_note" rows="4" maxlength="300" placeholder="記錄需核對的量體字段、溝通結果或下一步安排"></textarea></label>
         <div class="dialog-actions"><button type="submit">保存跟進記錄</button></div>
-      </form>
-    </dialog>
-    <dialog class="after-sale-create-dialog" id="after-sale-create-dialog">
-      <form id="after-sale-form">
-        <div class="dialog-head"><div><h3>新建售後</h3><p>先搜尋並確認員工，再勾選本輪涉及的服裝、數量和具體需求。</p></div><button class="secondary" type="button" data-close-after-sale-create>取消</button></div>
-        <section class="after-sale-search-section">
-          <label><span>員工編號</span><div class="after-sale-search-row"><input id="after-sale-employee-query" type="search" placeholder="輸入完整或部分員工編號" /><button type="button" id="search-after-sale-employee">搜尋員工</button></div></label>
-          <p class="form-error" id="after-sale-search-error" hidden></p>
-          <div class="after-sale-employee-results" id="after-sale-employee-results"></div>
-        </section>
-        <section id="after-sale-request-section" hidden>
-          <div class="after-sale-employee-card" id="after-sale-employee-card"></div>
-          <h4>勾選服裝並填寫需求</h4>
-          <div class="after-sale-garment-list" id="after-sale-garment-list"></div>
-          <label><span>本輪補充說明（選填）</span><textarea name="remark" rows="3" placeholder="例如：與員工確認方式、收衣情況等"></textarea></label>
-        </section>
-        <p class="form-error" id="after-sale-form-error" hidden></p>
-        <div class="dialog-actions"><button type="submit" id="save-after-sale" disabled>保存並設為已登記</button></div>
       </form>
     </dialog>
     <dialog class="after-sale-detail-dialog" id="after-sale-detail-dialog">
@@ -429,6 +413,7 @@
       <div class="analysis-result-toolbar"><label><span>搜尋員工</span><input id="analysis-result-search" type="search" placeholder="員工編號或姓名" /></label><button class="secondary" type="button" id="export-analysis-results">導出分析結果</button></div>
       <div class="table-wrap"><table id="analysis-result-table"></table></div>
     </dialog>
-    <script src="./app.js?v=20260822-appointment-export"></script>
+    <script src="../shared/workflow.js?v=20260916-multi-receipt"></script>
+    <script src="./app.js?v=20260916-multi-receipt"></script>
   </body>
 </html>

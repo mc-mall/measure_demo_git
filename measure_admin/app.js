@@ -13,7 +13,6 @@ const employeePagination = { page: 1, pageSize: 15 };
 const afterSalePagination = { page: 1, pageSize: 15 };
 const orderEditorState = { step: 1, garments: [], quantityRules: [] };
 const signatureDetailState = { orderId: "", page: 1, pageSize: 15 };
-const afterSaleFormState = { employeeId: "" };
 const appointmentSelection = new Set();
 let currentUser = readSessionUser();
 
@@ -70,80 +69,7 @@ const analysisGarments = {
 
 const comparisonState = { step: 1, garmentSignature: "", results: [], stats: null, config: null };
 
-function seedDate(daysFromToday) {
-  const date = new Date();
-  date.setDate(date.getDate() + daysFromToday);
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return offsetDate.toISOString().slice(0, 10);
-}
-
-function seedStore() {
-  return {
-    afterSaleStatusVersion: 2,
-    tailors: [{ id: "T001", name: "張師傅", username: "tailor-demo", has_password: true }],
-    orders: [{
-      id: "O001",
-      order_id: "ORDER001",
-      company_name: "澳設集團 2026 制服",
-      garments: [
-        { id: "G001", gender: "男", name: "襯衫", default_quantity: 2, quantity_editable: true },
-        { id: "G002", gender: "男", name: "西褲", default_quantity: 2, quantity_editable: true },
-        { id: "G003", gender: "女", name: "襯衫", default_quantity: 2, quantity_editable: true },
-        { id: "G004", gender: "女", name: "半裙", default_quantity: 2, quantity_editable: true },
-        { id: "G005", gender: "男", name: "毛衣", default_quantity: 2, quantity_editable: true },
-        { id: "G006", gender: "女", name: "連衣裙", default_quantity: 2, quantity_editable: true },
-        { id: "G007", gender: "女", name: "西褲", default_quantity: 2, quantity_editable: true },
-      ],
-      quantity_rules: [
-        { id: "R001", gender: "女", garment_ids: ["G006", "G007"], operator: "lte", quantity: 4 },
-        { id: "R002", gender: "男", garment_ids: ["G001", "G005"], operator: "eq", quantity: 4 },
-      ],
-    }],
-    employees: [
-      { id: "E001", employee_id: "EMP001", name: "陳嘉儀", gender: "女", height_cm: "166", weight_kg: "54.5", unit_name: "澳門分部", order_id: "ORDER001" },
-      { id: "E002", employee_id: "EMP002", name: "李國輝", gender: "男", height_cm: "176", weight_kg: "72", unit_name: "香港分部", order_id: "ORDER001" },
-    ],
-    measurements: [],
-    subaccounts: [],
-    appointmentSlots: [
-      { id: "APS001", order_id: "ORDER001", address: "澳門門店 2 樓量體區", date: seedDate(3), start_time: "10:00", end_time: "12:00", max_bookings: 6, allow_overbook: false, status: "enabled" },
-      { id: "APS002", order_id: "ORDER001", address: "澳門門店 2 樓量體區", date: seedDate(3), start_time: "14:00", end_time: "17:00", max_bookings: 8, allow_overbook: true, status: "enabled" },
-    ],
-    appointments: [
-      { id: "APB001", slot_id: "APS001", employee_id: "EMP001", employee_name: "陳嘉儀", employee_unit: "澳門分部", order_id: "ORDER001", status: "booked", created_at: nowText() },
-    ],
-    afterSales: [
-      {
-        id: "AS20260809001",
-        employee_id: "EMP001",
-        employee_name: "陳嘉儀",
-        employee_gender: "女",
-        employee_unit: "澳門分部",
-        order_id: "ORDER001",
-        items: [{ garment_id: "G003", garment_name: "襯衫", quantity: 1, demand: "換大一碼，保留原款式" }],
-        remark: "員工已將服裝交回門店。",
-        status: "已登記",
-        created_at: "2026-08-09 10:20:00",
-        updated_at: "2026-08-09 10:20:00",
-        status_history: [{ status: "已登記", changed_at: "2026-08-09 10:20:00" }],
-      },
-      {
-        id: "AS20260808001",
-        employee_id: "EMP002",
-        employee_name: "李國輝",
-        employee_gender: "男",
-        employee_unit: "香港分部",
-        order_id: "ORDER001",
-        items: [{ garment_id: "G002", garment_name: "西褲", quantity: 1, demand: "褲長縮短 2cm" }],
-        remark: "修改尺寸已與員工確認。",
-        status: "已處理",
-        created_at: "2026-08-08 14:35:00",
-        updated_at: "2026-08-09 09:15:00",
-        status_history: [{ status: "已登記", changed_at: "2026-08-08 14:35:00" }, { status: "已處理", changed_at: "2026-08-09 09:15:00" }],
-      },
-    ],
-  };
-}
+function seedStore() { return MeasureWorkflow.normalize(MeasureWorkflow.seedStore()); }
 
 function ownerSession(username = "主賬號") {
   return { id: "owner", name: "系統管理員", username, role: "owner", permissions: ["employee_view", "measurement_followup", "record_export"] };
@@ -198,20 +124,8 @@ function loadStore() {
     return seeded;
   }
   try {
-    const loaded = { ...seedStore(), ...JSON.parse(raw) };
+    const loaded = MeasureWorkflow.normalize({ ...seedStore(), ...JSON.parse(raw) });
     let changed = false;
-    if (loaded.afterSaleStatusVersion !== 2) {
-      loaded.afterSales = (loaded.afterSales || []).map((record) => ({
-        ...record,
-        status: record.status === "已完成" ? "已處理" : record.status === "已發回" ? "已完成" : record.status,
-        status_history: (record.status_history || []).map((entry) => ({
-          ...entry,
-          status: entry.status === "已完成" ? "已處理" : entry.status === "已發回" ? "已完成" : entry.status,
-        })),
-      }));
-      loaded.afterSaleStatusVersion = 2;
-      changed = true;
-    }
     const fallbackOrderId = loaded.orders?.length === 1 ? loaded.orders[0].order_id : "";
     loaded.appointmentSlots = (loaded.appointmentSlots || []).map((slot) => {
       if (slot.order_id || !fallbackOrderId) return slot;
@@ -270,7 +184,7 @@ function uid(prefix) {
 
 function switchView(name) {
   const targetButton = navButtons.find((button) => button.dataset.view === name);
-  if (!targetButton || targetButton.hidden) name = isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : "records-male");
+  if (!targetButton || targetButton.hidden) name = isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : "records-male");
   views.forEach((view) => view.classList.toggle("is-active", view.id === `view-${name}`));
   navButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.view === name));
   document.getElementById("view-title").textContent = navButtons.find((button) => button.dataset.view === name)?.textContent || "總覽";
@@ -278,6 +192,7 @@ function switchView(name) {
 
 function applyAccessPolicy() {
   document.querySelectorAll("[data-owner-only]").forEach((element) => { element.hidden = !isOwner(); });
+  document.querySelector('[data-view="after-sales"]').hidden = !hasPermission("after_sales");
   document.querySelector('[data-view="employees"]').hidden = !hasPermission("employee_view");
   document.querySelectorAll("[data-export-records]").forEach((button) => { button.hidden = !hasPermission("record_export"); });
   const userBox = document.getElementById("current-user");
@@ -285,7 +200,7 @@ function applyAccessPolicy() {
   document.getElementById("current-user-name").textContent = currentUser?.name || currentUser?.username || "";
   document.getElementById("current-user-role").textContent = isOwner() ? "主賬號 · 全部權限" : "子賬號 · 運營跟進";
   const active = navButtons.find((button) => button.classList.contains("is-active"));
-  if (active?.hidden) switchView(hasPermission("employee_view") ? "employees" : "records-male");
+  if (active?.hidden) switchView(hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : "records-male");
 }
 
 function orderLabel(orderId) {
@@ -346,7 +261,7 @@ function renderOrders() {
     <tr>
       <td>${escapeHtml(item.order_id)}</td><td>${escapeHtml(item.company_name)}</td>
       <td>${garmentSummary(item, "男")}</td><td>${garmentSummary(item, "女")}</td><td>${quantityRuleSummary(item)}</td>
-      <td><div class="row-actions"><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button></div></td>
+      <td><div class="row-actions"><button type="button" data-order-progress="${escapeHtml(item.order_id)}">執行進度</button><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button></div></td>
     </tr>
   `);
   renderTable("order-table", ["訂單號", "公司名", "男士服裝配置", "女士服裝配置", "組合數量限制", "操作"], rows);
@@ -539,15 +454,8 @@ function followupCell(record) {
   return `<div class="followup-meta"><span class="status-pill ${statusClass}">${escapeHtml(status)}</span>${details.map((item) => `<small>${escapeHtml(item)}</small>`).join("")}</div>`;
 }
 
-function employeeAfterSaleGarments(employee) {
-  const order = loadStore().orders.find((item) => item.order_id === employee.order_id);
-  return (Array.isArray(order?.garments) ? order.garments : [])
-    .filter((item) => item.gender === employee.gender)
-    .map((item) => ({ id: item.id || item.name, name: item.name, quantity: Math.max(1, Number(item.default_quantity) || 1) }));
-}
-
 function afterSaleItemSummary(record) {
-  return (record.items || []).map((item) => `${escapeHtml(item.garment_name)} × ${Number(item.quantity) || 0}`).join("<br>") || "-";
+  return (record.items || []).map((item) => `${escapeHtml(item.garment_name)} × ${Number(item.quantity) || 0}${item.closed ? "（已關閉）" : ""}`).join("<br>") || "-";
 }
 
 function afterSaleDateKey(value) {
@@ -555,6 +463,7 @@ function afterSaleDateKey(value) {
   return match ? `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}` : "";
 }
 
+let filteredAfterSales = [];
 function renderAfterSales() {
   const store = loadStore();
   const keyword = document.getElementById("after-sale-filter-keyword").value.trim().toLowerCase();
@@ -572,17 +481,18 @@ function renderAfterSales() {
       && (!endDate || (recordDate && recordDate <= endDate))
       && (!status || record.status === status);
   }).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  filteredAfterSales = records;
   const totalPages = Math.max(1, Math.ceil(records.length / afterSalePagination.pageSize));
   afterSalePagination.page = Math.min(afterSalePagination.page, totalPages);
   const start = (afterSalePagination.page - 1) * afterSalePagination.pageSize;
   const pageRecords = records.slice(start, start + afterSalePagination.pageSize);
-  const selectableCount = pageRecords.filter((record) => record.status !== "已完成").length;
+  const selectableCount = pageRecords.filter((record) => !["完成派送", "已關閉"].includes(record.status)).length;
   const rows = pageRecords.map((record) => `
     <tr>
-      <td><input class="after-sale-row-check" type="checkbox" value="${escapeHtml(record.id)}" aria-label="選擇 ${escapeHtml(record.id)}" ${record.status === "已完成" ? "disabled" : ""} /></td>
-      <td>${escapeHtml(record.id)}</td><td>${escapeHtml(record.created_at)}</td><td>${escapeHtml(record.employee_id)}</td><td>${escapeHtml(record.employee_name)}</td><td>${escapeHtml(orderLabel(record.order_id))}</td><td>${afterSaleItemSummary(record)}</td><td><span class="after-sale-status status-${record.status === "已登記" ? "registered" : record.status === "已處理" ? "processed" : "completed"}">${escapeHtml(record.status)}</span></td><td><button type="button" data-after-sale-detail="${escapeHtml(record.id)}">查看詳情</button></td>
+      <td><input class="after-sale-row-check" type="checkbox" value="${escapeHtml(record.id)}" aria-label="選擇 ${escapeHtml(record.id)}" ${["完成派送", "已關閉"].includes(record.status) ? "disabled" : ""} /></td>
+      <td>${escapeHtml(record.id)}</td><td>${escapeHtml(record.created_at)}</td><td>${escapeHtml(record.employee_id)}</td><td>${escapeHtml(record.employee_name)}</td><td>${escapeHtml(orderLabel(record.order_id))}</td><td>${afterSaleItemSummary(record)}</td><td><span class="after-sale-status status-${record.status === "提交售後" ? "registered" : record.status === "完成派送" ? "completed" : "processed"}">${escapeHtml(record.status)}</span></td><td><button type="button" data-after-sale-detail="${escapeHtml(record.id)}">查看詳情 / 處理</button></td>
     </tr>`);
-  renderTable("after-sale-table", [`<label class="table-check-all"><input id="after-sale-check-page" type="checkbox" aria-label="勾選當前頁" ${selectableCount ? "" : "disabled"} /><span>選擇</span></label>`, "登記編號", "登記時間", "員工編號", "姓名", "訂單 / 公司", "服裝 / 數量", "狀態", "操作"], rows, "暫無退換登記");
+  renderTable("after-sale-table", [`<label class="table-check-all"><input id="after-sale-check-page" type="checkbox" aria-label="勾選當前頁" ${selectableCount ? "" : "disabled"} /><span>選擇</span></label>`, "登記編號", "登記時間", "員工編號", "姓名", "訂單 / 公司", "服裝 / 數量", "狀態", "操作"], rows, "暫無售後申請");
   document.getElementById("after-sale-pagination").innerHTML = `
     <span>共 ${records.length} 條，第 ${afterSalePagination.page} / ${totalPages} 頁</span>
     <div><label class="pagination-size"><span>每頁</span><select id="after-sale-page-size"><option value="15" ${afterSalePagination.pageSize === 15 ? "selected" : ""}>15 條/頁</option><option value="50" ${afterSalePagination.pageSize === 50 ? "selected" : ""}>50 條/頁</option><option value="100" ${afterSalePagination.pageSize === 100 ? "selected" : ""}>100 條/頁</option></select></label><button class="secondary" type="button" data-after-sale-page="prev" ${afterSalePagination.page <= 1 ? "disabled" : ""}>上一頁</button><button class="secondary" type="button" data-after-sale-page="next" ${afterSalePagination.page >= totalPages ? "disabled" : ""}>下一頁</button></div>`;
@@ -600,113 +510,45 @@ function updateAfterSaleSelection() {
   document.getElementById("after-sale-selected-count").textContent = `已選 ${count} 項`;
 }
 
-function resetAfterSaleForm() {
-  const form = document.getElementById("after-sale-form");
-  form.reset();
-  afterSaleFormState.employeeId = "";
-  document.getElementById("after-sale-employee-results").innerHTML = "";
-  document.getElementById("after-sale-request-section").hidden = true;
-  document.getElementById("after-sale-search-error").hidden = true;
-  document.getElementById("after-sale-form-error").hidden = true;
-  document.getElementById("save-after-sale").disabled = true;
-}
-
-function searchAfterSaleEmployee() {
-  const query = document.getElementById("after-sale-employee-query").value.trim().toLowerCase();
-  const error = document.getElementById("after-sale-search-error");
-  if (!query) {
-    error.textContent = "請先輸入員工編號。";
-    error.hidden = false;
-    return;
-  }
-  error.hidden = true;
-  const matches = loadStore().employees.filter((item) => String(item.employee_id).toLowerCase().includes(query));
-  document.getElementById("after-sale-employee-results").innerHTML = matches.length ? matches.map((employee) => `
-    <button class="after-sale-employee-result" type="button" data-select-after-sale-employee="${escapeHtml(employee.id)}"><strong>${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</strong><span>${escapeHtml(employee.unit_name)}｜${escapeHtml(orderLabel(employee.order_id))}</span></button>`).join("") : `<p class="garment-empty">未找到匹配員工，請核對員工編號。</p>`;
-}
-
-function selectAfterSaleEmployee(employeeId) {
-  const employee = loadStore().employees.find((item) => item.id === employeeId);
-  if (!employee) return;
-  const garments = employeeAfterSaleGarments(employee);
-  afterSaleFormState.employeeId = employeeId;
-  document.getElementById("after-sale-employee-card").innerHTML = `<div><span>本次登記員工</span><strong>${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</strong></div><div><span>性別 / 單位</span><strong>${escapeHtml(employee.gender)} / ${escapeHtml(employee.unit_name)}</strong></div><div><span>歸屬訂單</span><strong>${escapeHtml(orderLabel(employee.order_id))}</strong></div>`;
-  document.getElementById("after-sale-garment-list").innerHTML = garments.length ? garments.map((garment) => `
-    <div class="after-sale-garment-row" data-after-sale-garment="${escapeHtml(garment.id)}" data-garment-name="${escapeHtml(garment.name)}" data-max-quantity="${garment.quantity}">
-      <label class="after-sale-garment-check"><input type="checkbox" /><span><strong>${escapeHtml(garment.name)}</strong>可登記數量：${garment.quantity}</span></label>
-      <label><span>本次數量</span><input class="after-sale-quantity" type="number" min="1" max="${garment.quantity}" value="1" disabled /></label>
-      <label><span>換貨 / 修改需求</span><textarea class="after-sale-demand" rows="2" placeholder="例如：換大一碼；袖長縮短 2cm" disabled></textarea></label>
-    </div>`).join("") : `<p class="garment-empty">該員工的訂單尚未配置對應性別的服裝，請先到訂單管理完成配置。</p>`;
-  document.getElementById("after-sale-request-section").hidden = false;
-  document.getElementById("save-after-sale").disabled = !garments.length;
-}
-
-function saveAfterSale(event) {
-  event.preventDefault();
-  const employee = loadStore().employees.find((item) => item.id === afterSaleFormState.employeeId);
-  const error = document.getElementById("after-sale-form-error");
-  if (!employee) {
-    error.textContent = "請先搜尋並選擇員工。";
-    error.hidden = false;
-    return;
-  }
-  const items = [...document.querySelectorAll("[data-after-sale-garment]")].flatMap((row) => {
-    if (!row.querySelector('input[type="checkbox"]').checked) return [];
-    return [{ garment_id: row.dataset.afterSaleGarment, garment_name: row.dataset.garmentName, quantity: Number(row.querySelector(".after-sale-quantity").value), demand: row.querySelector(".after-sale-demand").value.trim(), max_quantity: Number(row.dataset.maxQuantity) }];
-  });
-  if (!items.length) {
-    error.textContent = "請至少勾選一件服裝。";
-    error.hidden = false;
-    return;
-  }
-  const invalid = items.find((item) => !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > item.max_quantity || !item.demand);
-  if (invalid) {
-    error.textContent = `${invalid.garment_name}：請填寫有效數量及具體換貨 / 修改需求。`;
-    error.hidden = false;
-    return;
-  }
-  const store = loadStore();
-  const createdAt = nowText();
-  store.afterSales ||= [];
-  store.afterSales.push({ id: uid("AS"), employee_id: employee.employee_id, employee_name: employee.name, employee_gender: employee.gender, employee_unit: employee.unit_name, order_id: employee.order_id, items: items.map(({ max_quantity, ...item }) => item), remark: new FormData(event.currentTarget).get("remark")?.trim() || "", status: "已登記", created_at: createdAt, updated_at: createdAt, status_history: [{ status: "已登記", changed_at: createdAt }] });
-  saveStore(store);
-  document.getElementById("after-sale-create-dialog").close();
-  resetAfterSaleForm();
-  renderAfterSales();
-  showToast("售後需求已保存，狀態為已登記。二次修改請重新登記。");
-}
-
 function openAfterSaleDetail(recordId) {
+  if (!hasPermission("after_sales")) return;
   const record = (loadStore().afterSales || []).find((item) => item.id === recordId);
   if (!record) return;
   document.getElementById("after-sale-detail-title").textContent = `售後詳情 · ${record.id}`;
   document.getElementById("after-sale-detail-subtitle").textContent = `${record.employee_id} · ${record.employee_name}｜${orderLabel(record.order_id)}`;
   document.getElementById("after-sale-detail-content").innerHTML = `
     <div class="after-sale-detail-meta"><div><span>狀態</span><strong>${escapeHtml(record.status)}</strong></div><div><span>登記時間</span><strong>${escapeHtml(record.created_at)}</strong></div><div><span>最後更新</span><strong>${escapeHtml(record.updated_at || record.created_at)}</strong></div></div>
-    <div class="table-wrap"><table><thead><tr><th>服裝</th><th>數量</th><th>換貨 / 修改需求</th></tr></thead><tbody>${(record.items || []).map((item) => `<tr><td>${escapeHtml(item.garment_name)}</td><td>${Number(item.quantity) || 0}</td><td class="wrap-cell">${escapeHtml(item.demand)}</td></tr>`).join("")}</tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>服裝</th><th>申請數量</th><th>累計簽收</th><th>換貨 / 修改需求</th><th>服裝處理</th></tr></thead><tbody>${(record.items || []).map((item) => `<tr><td>${escapeHtml(item.garment_name)}</td><td>${Number(item.quantity) || 0}</td><td>${escapeHtml(MeasureWorkflow.receivedLabel(record, item))}</td><td class="wrap-cell">${escapeHtml(item.demand)}</td><td>${item.closed ? `已關閉<br>${escapeHtml(item.closed.reason)}<br>${escapeHtml(item.closed.operator)} · ${escapeHtml(item.closed.closed_at)}` : ["提交售後", "門市收貨"].includes(record.status) ? `<button type="button" data-close-sale-item="${escapeHtml(record.id)}" data-item-index="${record.items.indexOf(item)}">關閉此服裝申請</button>` : "處理中"}</td></tr>`).join("")}</tbody></table></div>
     <p class="after-sale-detail-remark"><strong>補充說明：</strong>${escapeHtml(record.remark || "-")}</p>
-    <div class="after-sale-history"><h4>狀態記錄</h4>${(record.status_history || []).map((item) => `<p><span>${escapeHtml(item.changed_at)}</span><strong>${escapeHtml(item.status)}</strong></p>`).join("")}</div>`;
+    <div class="after-sale-history"><h4>狀態記錄</h4><div class="table-wrap"><table><thead><tr><th>時間</th><th>狀態 / 操作</th><th>操作人</th></tr></thead><tbody>${(record.status_history || []).map(item => `<tr><td>${escapeHtml(item.changed_at)}</td><td>${escapeHtml(item.action || item.status)}</td><td>${escapeHtml(item.operator || "未記錄")}</td></tr>`).join("")}</tbody></table></div></div>`;
+  const stage = MeasureWorkflow.after.indexOf(record.status);
+  const batches = MeasureWorkflow.receiptBatches(record);
+  document.getElementById("after-sale-detail-content").innerHTML += `<section class="after-sale-history"><h4>簽收記錄（${batches.length} 次）</h4>${batches.map((batch, index) => `<div><strong>第 ${index + 1} 次 · ${escapeHtml(batch.received_at)}</strong><p>操作人：${escapeHtml(batch.operator || "未記錄")}</p><p>${(batch.items || []).filter(item => item.quantity > 0).map(item => `${escapeHtml(item.garment_name)} × ${item.quantity}`).join("、")}</p><p>備註：${escapeHtml(batch.remark || "-")}</p></div>`).join("") || "<p>暫無簽收記錄</p>"}</section>`;
+  if (stage >= 0 && stage <= 1 && record.items.some(item => MeasureWorkflow.remainingQuantity(record, item) > 0)) document.getElementById("after-sale-detail-content").innerHTML += `<section class="receipt-panel"><h4>新增簽收</h4><p>填寫本次收到的數量，未帶來的填 0；累計數量不得超過申請數量。</p>${record.items.map((item, index) => MeasureWorkflow.remainingQuantity(record, item) > 0 ? `<label>${escapeHtml(item.garment_name)}（申請 ${item.quantity}，已收 ${MeasureWorkflow.receivedQuantity(record, item) || 0}，待收 ${MeasureWorkflow.remainingQuantity(record, item)}）<input type="number" data-receipt-item="${index}" min="0" max="${MeasureWorkflow.remainingQuantity(record, item)}" step="1" value="0"></label>` : "").join("")}<p>操作人：${escapeHtml(currentUser.username)}</p><label>本次簽收備註<textarea id="receipt-remark" rows="2"></textarea></label><button type="button" data-receive-after-sale="${escapeHtml(record.id)}">確認本次簽收</button></section>`;
+  if (stage > 0 && stage < 4) document.getElementById("after-sale-detail-content").innerHTML += stage === 1 && !MeasureWorkflow.readyForFactory(record) ? "<p>請收齊仍需處理的服裝，或關閉不需送廠的服裝申請，再下單到工廠。</p>" : `<button type="button" data-advance-after-sale="${escapeHtml(record.id)}">確認${MeasureWorkflow.after[stage + 1]}</button>`;
   document.getElementById("after-sale-detail-dialog").showModal();
 }
 
 function applyAfterSaleStatus() {
-  const ids = [...document.querySelectorAll(".after-sale-row-check:checked")].map((input) => input.value);
+  if (!hasPermission("after_sales")) return;
+  const ids = [...document.querySelectorAll(".after-sale-row-check:checked")].map(input => input.value);
   const status = document.getElementById("after-sale-batch-status").value;
-  if (!ids.length) return showToast("請先勾選需要修改的售後需求。");
-  if (!status) return showToast("請選擇要修改的需求狀態。");
   const store = loadStore();
-  const changedAt = nowText();
-  (store.afterSales || []).forEach((record) => {
-    if (!ids.includes(record.id) || record.status === "已完成" || record.status === status) return;
-    record.status = status;
-    record.updated_at = changedAt;
-    record.status_history ||= [];
-    record.status_history.push({ status, changed_at: changedAt });
-  });
+  const records = (store.afterSales || []).filter(record => ids.includes(record.id));
+  if (!records.length || !status) return showToast("請選擇記錄與下一階段。");
+  if (records.some(record => MeasureWorkflow.after.indexOf(record.status) < 1 || MeasureWorkflow.after[MeasureWorkflow.after.indexOf(record.status) + 1] !== status)) return showToast("請逐筆核對門市收貨；批量處理僅支持已收貨記錄順序進入下一階段。");
+  if (status === "已下單到工廠" && records.some(record => !MeasureWorkflow.readyForFactory(record))) return showToast("仍有服裝未收齊，請完成簽收或關閉其申請。");
+  if (!confirm(`確認將 ${records.length} 筆售後更新為「${status}」？`)) return;
+  records.forEach(record => advanceAfterSale(record, status));
   saveStore(store);
-  document.getElementById("after-sale-batch-status").value = "";
   renderAfterSales();
-  showToast(status === "已完成" ? "狀態已更新為已完成，本輪需求已結束。" : `售後需求已批量更新為${status}。`);
+  showToast("售後進度已更新。");
+}
+function advanceAfterSale(record, status) {
+  record.status = status;
+  record.updated_at = nowText();
+  record.status_history ||= [];
+  record.status_history.push({status, changed_at: record.updated_at, operator: currentUser.username, operator_id: currentUser.id});
 }
 
 function renderRecords(gender) {
@@ -889,6 +731,7 @@ function renderAll() {
   } else {
     ["tailor-table", "order-table", "after-sale-table", "appointment-slot-table", "signature-table", "subaccount-table"].forEach((id) => { document.getElementById(id).innerHTML = ""; });
   }
+  if (hasPermission("after_sales")) renderAfterSales();
   applyAccessPolicy();
 }
 
@@ -1726,7 +1569,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
   document.getElementById("login-view").hidden = true;
   document.getElementById("admin-shell").hidden = false;
   event.currentTarget.reset();
-  switchView(isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : "records-male"));
+  switchView(isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : "records-male"));
   renderAll();
 });
 
@@ -1801,19 +1644,6 @@ document.getElementById("appointment-slot-form").addEventListener("submit", (eve
   showToast(data.id ? "預約時段已更新。" : "預約時段已新增，員工端可立即查看。");
 });
 
-document.getElementById("open-after-sale-create").addEventListener("click", () => {
-  resetAfterSaleForm();
-  document.getElementById("after-sale-create-dialog").showModal();
-  document.getElementById("after-sale-employee-query").focus();
-});
-document.getElementById("search-after-sale-employee").addEventListener("click", searchAfterSaleEmployee);
-document.getElementById("after-sale-employee-query").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    searchAfterSaleEmployee();
-  }
-});
-document.getElementById("after-sale-form").addEventListener("submit", saveAfterSale);
 document.getElementById("apply-after-sale-status").addEventListener("click", applyAfterSaleStatus);
 document.querySelectorAll("#after-sale-filter-keyword, #after-sale-filter-unit, #after-sale-filter-start, #after-sale-filter-end, #after-sale-filter-status").forEach((field) => {
   field.addEventListener(field.tagName === "SELECT" ? "change" : "input", () => {
@@ -1846,14 +1676,6 @@ document.getElementById("after-sale-pagination").addEventListener("change", (eve
   afterSalePagination.page = 1;
   renderAfterSales();
 });
-document.getElementById("after-sale-garment-list").addEventListener("change", (event) => {
-  if (!event.target.matches('.after-sale-garment-check input[type="checkbox"]')) return;
-  const row = event.target.closest("[data-after-sale-garment]");
-  row.querySelector(".after-sale-quantity").disabled = !event.target.checked;
-  row.querySelector(".after-sale-demand").disabled = !event.target.checked;
-  if (event.target.checked) row.querySelector(".after-sale-demand").focus();
-});
-
 document.querySelectorAll(".record-name-search, .record-employee-search").forEach((input) => {
   input.addEventListener("input", () => {
     const gender = input.closest(".view").id === "view-records-male" ? "男" : "女";
@@ -1991,6 +1813,8 @@ document.getElementById("employee-form").addEventListener("submit", (event) => {
     verification_status: identityChanged ? "unverified" : current?.verification_status || "unverified",
     signature_confirmation: identityChanged ? null : current?.signature_confirmation || null,
     verified_at: identityChanged ? "" : current?.verified_at || "",
+    order_progress: identityChanged ? 0 : current?.order_progress || 0,
+    order_progress_history: identityChanged ? [] : current?.order_progress_history || [],
   });
   event.currentTarget.reset();
   document.getElementById("employee-dialog").close();
@@ -2121,7 +1945,6 @@ document.body.addEventListener("click", (event) => {
     renderQuantityRules();
   }
   if (button.dataset.openSignatures) openSignatureDetails(button.dataset.openSignatures);
-  if (button.dataset.selectAfterSaleEmployee) selectAfterSaleEmployee(button.dataset.selectAfterSaleEmployee);
   if (button.dataset.afterSaleDetail) openAfterSaleDetail(button.dataset.afterSaleDetail);
   if (button.dataset.afterSalePage) {
     afterSalePagination.page += button.dataset.afterSalePage === "next" ? 1 : -1;
@@ -2201,7 +2024,6 @@ document.body.addEventListener("click", (event) => {
   if (button.hasAttribute("data-close-entity")) button.closest("dialog").close();
   if (button.hasAttribute("data-close-comparison")) document.getElementById("comparison-dialog").close();
   if (button.hasAttribute("data-close-analysis-results")) document.getElementById("analysis-results-dialog").close();
-  if (button.hasAttribute("data-close-after-sale-create")) document.getElementById("after-sale-create-dialog").close();
   if (button.hasAttribute("data-close-after-sale-detail")) document.getElementById("after-sale-detail-dialog").close();
   if (button.dataset.exportRecords) exportRecords(button.dataset.exportRecords, button.closest("[data-record-export-panel]"));
   if (button.dataset.recordPage) {
@@ -2229,7 +2051,7 @@ loadStore();
 if (currentUser) {
   document.getElementById("login-view").hidden = true;
   document.getElementById("admin-shell").hidden = false;
-  switchView(isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : "records-male"));
+  switchView(isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : "records-male"));
 }
 (async () => {
   try {
@@ -2239,3 +2061,79 @@ if (currentUser) {
   }
   renderAll();
 })();
+
+function openOrderProgress(orderId) {
+  const store = loadStore();
+  const dialog = document.getElementById("order-progress-dialog");
+  dialog.dataset.orderId = orderId;
+  document.getElementById("order-progress-content").innerHTML = `<table><thead><tr><th>員工</th><th>已完成階段</th><th>下一步</th><th>更新記錄</th></tr></thead><tbody>${store.employees.filter(employee => employee.order_id === orderId).map(employee => {
+    const stage = MeasureWorkflow.progress(store, employee);
+    return `<tr><td>${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</td><td>${stage ? MeasureWorkflow.forward[stage - 1] : "尚未確認服裝"}</td><td>${stage >= 3 && stage < 6 ? `<button type="button" data-advance-order="${escapeHtml(employee.id)}">確認${MeasureWorkflow.forward[stage]}</button>` : stage === 6 ? "流程已完成" : `等待員工 / 裁縫完成${MeasureWorkflow.forward[stage]}`}</td><td>${(employee.order_progress_history || []).map(item => `${escapeHtml(item.status)} · ${escapeHtml(item.changed_at)}`).join("<br>") || "-"}</td></tr>`;
+  }).join("")}</tbody></table>`;
+  if (!dialog.open) dialog.showModal();
+}
+document.addEventListener("click", event => {
+  const button = event.target.closest("button");
+  if (!button || !currentUser) return;
+  if ((button.dataset.orderProgress || button.dataset.advanceOrder) && !isOwner()) return;
+  if (button.dataset.orderProgress) openOrderProgress(button.dataset.orderProgress);
+  if (button.dataset.advanceOrder) {
+    const store = loadStore();
+    const employee = store.employees.find(item => item.id === button.dataset.advanceOrder);
+    if (!employee) return;
+    const stage = MeasureWorkflow.progress(store, employee);
+    if (stage < 3 || stage >= 6 || !confirm(`確認 ${employee.name}：${MeasureWorkflow.forward[stage]}？`)) return;
+    employee.order_progress = stage + 1;
+    employee.order_progress_history ||= [];
+    employee.order_progress_history.push({status: MeasureWorkflow.forward[stage], changed_at: nowText(), operator: currentUser?.username});
+    saveStore(store);
+    openOrderProgress(employee.order_id);
+  }
+  const id = button.dataset.receiveAfterSale || button.dataset.advanceAfterSale || button.dataset.closeSaleItem;
+  if (!id || !hasPermission("after_sales")) return;
+  const store = loadStore();
+  const record = store.afterSales.find(item => item.id === id);
+  if (!record) return;
+  const stage = MeasureWorkflow.after.indexOf(record.status);
+  if (button.dataset.closeSaleItem) {
+    const item = record.items[Number(button.dataset.itemIndex)];
+    if (!item || item.closed || stage < 0 || stage > 1) return showToast("此服裝目前不可關閉。");
+    const reason = prompt(`關閉「${item.garment_name}」申請，請填寫原因（例如：現場退換）。`);
+    if (reason === null) return;
+    if (!reason.trim()) return showToast("關閉原因必填。");
+    item.closed = {reason: reason.trim(), operator: currentUser.username, operator_id: currentUser.id, closed_at: nowText()};
+    record.updated_at = nowText();
+    if (record.items.every(item => item.closed)) record.status = "已關閉";
+    record.status_history ||= [];
+    record.status_history.push({status: record.status, action: `關閉服裝：${item.garment_name}；${reason.trim()}`, changed_at: record.updated_at, operator: currentUser.username, operator_id: currentUser.id});
+  } else if (button.dataset.receiveAfterSale) {
+    if (stage < 0 || stage > 1) return showToast("此申請已進入後續階段，不可新增簽收。");
+    const fields = [...document.querySelectorAll("[data-receipt-item]")];
+    const entries = fields.map(input => ({item: record.items[Number(input.dataset.receiptItem)], quantity: input.value.trim() === "" ? NaN : Number(input.value)}));
+    if (!entries.length || entries.some(({item, quantity}) => !item || item.closed || !Number.isInteger(quantity) || quantity < 0 || quantity > MeasureWorkflow.remainingQuantity(record, item))) return showToast("本次簽收數量須為整數，且不得超過待收數量。");
+    if (!entries.some(entry => entry.quantity > 0)) return showToast("本次至少簽收一件服裝。");
+    if (!confirm(entries.filter(entry => entry.quantity > 0).map(({item, quantity}) => `${item.garment_name}：本次 ${quantity} 件`).join("\n") + "\n確認本次簽收？")) return;
+    record.receipts = [...MeasureWorkflow.receiptBatches(record), {operator: currentUser.username, operator_id: currentUser.id, received_at: nowText(), remark: document.getElementById("receipt-remark").value.trim(), items: entries.map(({item, quantity}) => ({garment_id: item.garment_id, garment_name: item.garment_name, quantity}))}];
+    record.receipt = {...record.receipts.at(-1), items: record.items.map(item => ({garment_id: item.garment_id, garment_name: item.garment_name, quantity: MeasureWorkflow.receivedQuantity(record, item)}))};
+    advanceAfterSale(record, "門市收貨");
+    record.status_history.at(-1).action = `第 ${record.receipts.length} 次簽收`;
+  } else {
+    if (stage < 1 || stage >= 4 || (stage === 1 && !MeasureWorkflow.readyForFactory(record))) return showToast("請先收齊仍需處理的服裝或關閉其申請。");
+    if (!confirm(`確認${MeasureWorkflow.after[stage + 1]}？`)) return;
+    advanceAfterSale(record, MeasureWorkflow.after[stage + 1]);
+  }
+  saveStore(store);
+  document.getElementById("after-sale-detail-dialog").close();
+  renderAfterSales();
+  openAfterSaleDetail(id);
+});
+document.getElementById("export-after-sales").addEventListener("click", () => {
+  if (!hasPermission("after_sales")) return;
+  renderAfterSales();
+  if (!filteredAfterSales.length) return showToast("當前篩選沒有可導出的售後明細。");
+  const rows = [["售後編號", "訂單", "員工編號", "姓名", "性別", "單位", "提交時間", "服裝", "申請數量", "簽收數量", "修改要求", "申請備註", "進度", "簽收人", "簽收時間", "簽收備註", "服裝狀態", "關閉原因", "關閉操作人", "待送廠數量"]];
+  filteredAfterSales.forEach(record => (record.items || []).forEach(item => rows.push([record.id, record.order_id, record.employee_id, record.employee_name, record.employee_gender, record.employee_unit, record.created_at, item.garment_name, item.quantity, MeasureWorkflow.receivedQuantity(record, item) ?? MeasureWorkflow.receivedLabel(record, item), item.demand, record.remark, record.status, record.receipt?.operator, record.receipt?.received_at, record.receipt?.remark, item.closed ? "已關閉" : "處理中", item.closed?.reason, item.closed?.operator, item.closed ? 0 : MeasureWorkflow.receivedQuantity(record, item) ?? "未記錄"])));
+  const safeCell = value => csvEscape(/^[=+@\-\t\r]/.test(String(value || "")) ? "'" + value : value);
+  downloadCsvBlob(new Blob(["\ufeff" + rows.map(row => row.map(safeCell).join(",")).join("\r\n")], {type: "text/csv;charset=utf-8"}), "售後明細.csv");
+});
+window.addEventListener("storage", event => { if (event.key === adminStoreKey && currentUser) renderAll(); });
