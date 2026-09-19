@@ -31,19 +31,19 @@ window.TailorProducts = (() => {
     const p=products[active], entry=entries[p.id];
     root.innerHTML=`<div class="product-tabs" aria-label="量身產品">${products.map((v,i)=>`<button type="button" data-product-index="${i}" class="${i===active?'is-active':''}" aria-pressed="${i===active}">${esc(v.name)}</button>`).join('')}</div>
       <div class="product-heading"><h3>${esc(p.name)}</h3><span>${active+1} / ${products.length}</span></div>
-      <fieldset class="tailor-pattern-picker"><legend>選擇版型 *</legend><div class="tailor-pattern-grid">${p.patterns.map(v=>`<label><input type="radio" name="product-pattern" data-pattern-choice value="${esc(v.id)}" ${entry.patternId===v.id?'checked':''}><span>${esc(v.name)}</span></label>`).join('')}</div></fieldset>
-      <p class="measure-hint">${entry.patternId ? '加減量填 +2 或 -1；留空表示沿用版型。淨體尺寸請填實測值，與成衣尺寸分開記錄。' : '選擇後顯示各字段的版型默認值。'}</p>
-      ${entry.patternId ? p.fields.map(f=>renderField(p,f)).join('') : '<div class="product-empty">先選版型，再逐項量身；通用項目可先填寫。</div>'+p.fields.filter(isChoice).map(f=>renderField(p,f)).join('')}`;
+      ${p.patterns.length ? `<fieldset class="tailor-pattern-picker"><legend>選擇版型 *</legend><div class="tailor-pattern-grid">${p.patterns.map(v=>`<label><input type="radio" name="product-pattern" data-pattern-choice value="${esc(v.id)}" ${entry.patternId===v.id?'checked':''}><span>${esc(v.name)}</span></label>`).join('')}</div></fieldset>` : ''}
+      <p class="measure-hint">${!p.patterns.length ? '按產品字段直接填寫，無需選擇版型。' : entry.patternId ? '加減量填 +2 或 -1；留空表示沿用版型。淨體尺寸請填實測值，與成衣尺寸分開記錄。' : '選擇後顯示各字段的版型默認值。'}</p>
+      ${(!p.patterns.length || entry.patternId) ? p.fields.map(f=>renderField(p,f)).join('') : '<div class="product-empty">先選版型，再逐項量身；通用項目可先填寫。</div>'+p.fields.filter(isChoice).map(f=>renderField(p,f)).join('')}`;
   }
   function renderField(p,f) {
     const r=result(p,f), numeric=f.type==='number';
     const opts=options(f);
-    const control = numeric ? `<div class="product-mode" role="group" aria-label="${esc(f.name)}錄入方式"><button type="button" data-mode="adjustment" aria-pressed="${r.mode==='adjustment'}" ${r.baseline===''?'disabled':''}>版型加減</button><button type="button" data-mode="body" aria-pressed="${r.mode==='body'}">淨體錄入</button></div>
+    const control = numeric ? `${p.patterns.length ? `<div class="product-mode" role="group" aria-label="${esc(f.name)}錄入方式"><button type="button" data-mode="adjustment" aria-pressed="${r.mode==='adjustment'}" ${r.baseline===''?'disabled':''}>版型加減</button><button type="button" data-mode="body" aria-pressed="${r.mode==='body'}">淨體錄入</button></div>` : ''}
       <div class="product-number-row"><label class="field"><span>${r.mode==='body'?'淨體尺寸（cm）':'加減量（cm）'}</span><input data-value="${r.mode==='body'?'body':'adjustment'}" type="text" inputmode="${r.mode==='body'?'decimal':'text'}" autocomplete="off" placeholder="${r.mode==='body'?'輸入實測尺寸':'+2 / -1'}" value="${esc(r.mode==='body'?r.body:r.adjustment)}"></label><div class="product-result"><span>${r.mode==='body'?'記錄為淨體':'成衣尺寸（cm）'}</span><strong data-result>${esc(r.value || '—')}</strong><small data-equation>${equation(r)}</small></div></div>`
       : isChoice(f) ? `<div class="product-choice-heading"><span data-choice-count>${f.type==='select'?'單選':`多選 · 已選 ${String(r.value).split(',').filter(Boolean).length} 項`}</span><button type="button" data-clear-choice>清空選擇</button></div><div class="product-choice-options" role="group" aria-label="${esc(f.name)}">${opts.map(v=>`<label><input type="${f.type==='select'?'radio':'checkbox'}" name="choice-${f.id}" data-option="${esc(v)}" ${String(r.value).split(',').includes(v)?'checked':''}><span>${esc(v)}</span></label>`).join('')}</div>`
       : `<label class="field"><span>本次數值</span><input type="text" data-value="value" value="${esc(r.value)}"></label>`;
     const expanded = expandedField === f.id;
-    return `<article class="product-measure-field" data-product-field="${f.id}"><button type="button" class="product-field-toggle" data-expand-field="${f.id}" aria-expanded="${expanded}" aria-controls="product-panel-${f.id}"><span class="product-field-name">${esc(f.name)}${f.required?' <em>*</em>':''}</span><span class="product-field-baseline">${isChoice(f) ? `產品通用 · ${f.type==='select'?'單選':'多選'}` : `默認 ${esc(r.baseline === '' ? '未設定' : r.baseline)}${numeric && r.baseline!==''?' cm':''}`}</span><span class="product-field-status" data-field-status>${esc(fieldStatus(r,numeric))}</span><span class="product-field-chevron" aria-hidden="true">⌄</span></button><div id="product-panel-${f.id}" class="product-field-panel" ${expanded?'':'hidden'}>${f.hint?`<p class="measure-hint">${esc(f.hint)}</p>`:''}${numeric&&r.baseline===''?'<p class="measure-hint">此版型未設定默認值，請錄入淨體尺寸。</p>':''}${control}</div></article>`;
+    return `<article class="product-measure-field" data-product-field="${f.id}"><button type="button" class="product-field-toggle" data-expand-field="${f.id}" aria-expanded="${expanded}" aria-controls="product-panel-${f.id}"><span class="product-field-name">${esc(f.name)}${f.required?' <em>*</em>':''}</span><span class="product-field-baseline">${!p.patterns.length && !isChoice(f) ? '直接錄入' : isChoice(f) ? `產品通用 · ${f.type==='select'?'單選':'多選'}` : `默認 ${esc(r.baseline === '' ? '未設定' : r.baseline)}${numeric && r.baseline!==''?' cm':''}`}</span><span class="product-field-status" data-field-status>${esc(fieldStatus(r,numeric))}</span><span class="product-field-chevron" aria-hidden="true">⌄</span></button><div id="product-panel-${f.id}" class="product-field-panel" ${expanded?'':'hidden'}>${f.hint?`<p class="measure-hint">${esc(f.hint)}</p>`:''}${numeric&&p.patterns.length&&r.baseline===''?'<p class="measure-hint">此版型未設定默認值，請錄入淨體尺寸。</p>':''}${control}</div></article>`;
   }
   function fieldStatus(r,numeric) {
     if (!numeric) return r.value === '' ? (r.mode==='common'?'未選擇':'待填寫') : String(r.value).replaceAll(',', '、');
@@ -66,7 +66,7 @@ window.TailorProducts = (() => {
   function equation(r) {return r.mode==='body'?'不換算為成衣尺寸':!Number.isFinite(Number(r.adjustment))?'請輸入有效加減量':`${esc(r.baseline)} ${Number(r.adjustment)<0?'−':'+'} ${esc(r.adjustment===''?'0':Math.abs(Number(r.adjustment)))}`;}
   function validate(index) {
     const p=products[index]; if(!p) return '請先在管理後台配置適用產品。';
-    if(!entries[p.id].patternId) return `${p.name}：請選擇版型。`;
+    if(p.patterns.length && !entries[p.id].patternId) return `${p.name}：請選擇版型。`;
     for(const f of p.fields) {
       const invalid = message => { expandedField=f.id; return message; };
       const r=result(p,f), prefix=`${p.name} · ${f.name}`;
@@ -98,7 +98,7 @@ window.TailorProducts = (() => {
     });return {measurements,measurement_labels,product_measurements};
   }
   function summary(record) {
-    return (record.product_measurements||[]).map(p=>`<section class="product-summary"><h3>${esc(p.product_name)} · ${esc(p.pattern_name)}</h3>${p.fields.map(f=>`<div><span>${esc(f.name)}</span><strong>${esc(f.value===''?'未填寫':f.value)}${f.type==='number'&&f.value!==''?' cm':''}</strong><small>${f.mode==='body'?'淨體尺寸':f.mode==='adjustment'?`版型 ${esc(f.baseline)} ${Number(f.adjustment)<0?'−':'+'} ${esc(f.adjustment===''?'0':Math.abs(Number(f.adjustment)))} → 成衣`:f.mode==='common'?'產品通用選項':'本次數值'}</small></div>`).join('')}</section>`).join('');
+    return (record.product_measurements||[]).map(p=>`<section class="product-summary"><h3>${esc(p.product_name)}${p.pattern_name ? ` · ${esc(p.pattern_name)}` : ''}</h3>${p.fields.map(f=>`<div><span>${esc(f.name)}</span><strong>${esc(f.value===''?'未填寫':f.value)}${f.type==='number'&&f.value!==''?' cm':''}</strong><small>${f.mode==='body'?'淨體尺寸':f.mode==='adjustment'?`版型 ${esc(f.baseline)} ${Number(f.adjustment)<0?'−':'+'} ${esc(f.adjustment===''?'0':Math.abs(Number(f.adjustment)))} → 成衣`:f.mode==='common'?'產品通用選項':'本次數值'}</small></div>`).join('')}</section>`).join('');
   }
   root.addEventListener('change',e=>{
     if(state.lockedRecord) return;

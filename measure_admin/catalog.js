@@ -14,7 +14,7 @@
   function renderLists() {
     const s = data();
     document.getElementById('pattern-table').innerHTML = `<thead><tr><th>服裝名稱</th><th>版型</th><th>尺碼字段</th><th>關聯產品</th><th>操作</th></tr></thead><tbody>${s.garmentTemplates.map(g => `<tr><td>${esc(g.name)}</td><td>${esc(g.patterns.map(p => p.name).join('、'))}</td><td>${g.fields.length} 項</td><td>${s.products.filter(p => p.garmentId === g.id).length}</td><td>${action('edit-pattern','編輯',`data-id="${g.id}" class="secondary"`)} ${action('delete-pattern','刪除',`data-id="${g.id}" class="danger"`)}</td></tr>`).join('') || '<tr><td colspan="5">尚未建立服裝版型。創建服裝後可手動錄入或導入尺碼表。</td></tr>'}</tbody>`;
-    document.getElementById('product-table').innerHTML = `<thead><tr><th>產品名稱</th><th>歸屬性別</th><th>服裝</th><th>已選版型</th><th>字段</th><th>操作</th></tr></thead><tbody>${s.products.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.gender)}</td><td>${esc(p.garmentName)}</td><td>${esc(p.patterns.map(v => v.name).join('、'))}</td><td>${p.fields.length} 項</td><td>${action('edit-product','編輯',`data-id="${p.id}" class="secondary"`)} ${action('delete-product','刪除',`data-id="${p.id}" class="danger"`)}</td></tr>`).join('') || '<tr><td colspan="6">尚未配置產品。請先建立服裝版型，再創建產品。</td></tr>'}</tbody>`;
+    document.getElementById('product-table').innerHTML = `<thead><tr><th>產品名稱</th><th>歸屬性別</th><th>服裝</th><th>已選版型</th><th>字段</th><th>操作</th></tr></thead><tbody>${s.products.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.gender)}</td><td>${esc(p.garmentName || '自主配置')}</td><td>${esc(p.patterns.map(v => v.name).join('、') || '不使用版型')}</td><td>${p.fields.length} 項</td><td>${action('edit-product','編輯',`data-id="${p.id}" class="secondary"`)} ${action('delete-product','刪除',`data-id="${p.id}" class="danger"`)}</td></tr>`).join('') || '<tr><td colspan="6">尚未配置產品。可直接添加字段，或選擇服裝版型初始化。</td></tr>'}</tbody>`;
   }
   function open(type, id) {
     kind = type;
@@ -30,9 +30,9 @@
     // Retain a product's snapshot even if its source template is subsequently edited.
     const available = [...(source?.patterns || []), ...draft.patterns.filter(p => !source?.patterns.some(v => v.id === p.id))];
     dialog.innerHTML = `<form id="catalog-form">
-      <div class="dialog-head"><div><h3>${product ? '產品配置' : '服裝版型'}</h3><p>${product ? '先選服裝與版型，再初始化並調整量體字段。' : '同一服裝下，每個版型一列、每個尺碼字段一行。'}</p></div>${action('cancel','取消','class="secondary"')}</div>
+      <div class="dialog-head"><div><h3>${product ? '產品配置' : '服裝版型'}</h3><p>${product ? '直接配置量體字段；如有預設尺碼，可選服裝與版型初始化。' : '同一服裝下，每個版型一列、每個尺碼字段一行。'}</p></div>${action('cancel','取消','class="secondary"')}</div>
       <div class="dialog-form-grid">${label(product ? '產品名稱 *' : '服裝名稱 *',input('name',draft.name,'text','required maxlength="128"'))}${product ? label('歸屬性別 *',`<select data-key="gender"><option ${draft.gender === '男' ? 'selected' : ''}>男</option><option ${draft.gender === '女' ? 'selected' : ''}>女</option></select>`) : ''}</div>
-      ${product ? `<section class="catalog-section">${label('選擇服裝 *',`<select id="catalog-garment" required><option value="">請選擇服裝</option>${data().garmentTemplates.map(g => `<option value="${g.id}" ${g.id === draft.garmentId ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>`)}<div class="catalog-selection-head"><strong>適用版型 <span class="catalog-count">已選 ${draft.patterns.length} / ${available.length}</span></strong><div>${action('select-all-patterns','全選','class="ghost"')} ${action('clear-patterns','清空','class="ghost"')}</div></div><div class="catalog-patterns catalog-product-patterns">${available.map(p => `<label><input type="checkbox" data-pattern="${p.id}" ${draft.patterns.some(v => v.id === p.id) ? 'checked' : ''}>${esc(p.name)}</label>`).join('') || '<span class="catalog-muted">請先在衣服版型管理建立服裝及版型。</span>'}</div><div class="catalog-toolbar">${action('initialize','初始化產品字段','class="secondary"')}<span class="catalog-muted">複製版型尺碼、淨體默認值、範圍及備註；後續修改獨立保存。</span></div></section>` : `<section class="catalog-section"><div class="catalog-toolbar">${action('add-pattern','＋ 添加版型','class="secondary"')}${action('template','下載導入模板（CSV）','class="secondary"')}<label class="catalog-file">導入 Excel / CSV<input id="catalog-file" type="file" accept=".xlsx,.csv,.tsv,.txt"></label></div><p class="catalog-muted">第一行為服裝名稱；第二行為「字段、各版型名稱、淨體、最小值、最大值、備註」。讀取第一張工作表，導入後可核對修改再保存。空白表示未設定，0 為有效數值。</p><div class="catalog-patterns">${draft.patterns.map(p => `<div class="catalog-pattern-chip">${input('pattern-name',p.name,'text',`data-pattern-id="${p.id}" required placeholder="例如 46A" aria-label="版型名稱" maxlength="64"`)}${action('remove-pattern','移除',`data-id="${p.id}" class="ghost"`)}</div>`).join('')}</div></section>`}
+      ${product ? `<section class="catalog-section">${label('服裝版型來源（選填）',`<select id="catalog-garment"><option value="">不綁定服裝版型，自主配置字段</option>${data().garmentTemplates.map(g => `<option value="${g.id}" ${g.id === draft.garmentId ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>`)}${draft.garmentId ? `<div class="catalog-selection-head"><strong>適用版型（選填） <span class="catalog-count">已選 ${draft.patterns.length} / ${available.length}</span></strong><div>${action('select-all-patterns','全選','class="ghost"')} ${action('clear-patterns','清空','class="ghost"')}</div></div><div class="catalog-patterns catalog-product-patterns">${available.map(p => `<label><input type="checkbox" data-pattern="${p.id}" ${draft.patterns.some(v => v.id === p.id) ? 'checked' : ''}>${esc(p.name)}</label>`).join('') || '<span class="catalog-muted">請先在衣服版型管理建立服裝及版型。</span>'}</div><div class="catalog-toolbar">${action('initialize','初始化產品字段',`class="secondary" ${draft.patterns.length ? '' : 'disabled'}`)}<span class="catalog-muted">複製版型尺碼、淨體默認值、範圍及備註；後續修改獨立保存。</span></div>` : '<p class="catalog-muted">無預設尺碼的產品可直接添加字段。例如：毛衣 → 尺碼 → 單選 S、M、L。</p>'}</section>` : `<section class="catalog-section"><div class="catalog-toolbar">${action('add-pattern','＋ 添加版型','class="secondary"')}${action('template','下載導入模板（CSV）','class="secondary"')}<label class="catalog-file">導入 Excel / CSV<input id="catalog-file" type="file" accept=".xlsx,.csv,.tsv,.txt"></label></div><p class="catalog-muted">第一行為服裝名稱；第二行為「字段、各版型名稱、淨體、最小值、最大值、備註」。讀取第一張工作表，導入後可核對修改再保存。空白表示未設定，0 為有效數值。</p><div class="catalog-patterns">${draft.patterns.map(p => `<div class="catalog-pattern-chip">${input('pattern-name',p.name,'text',`data-pattern-id="${p.id}" required placeholder="例如 46A" aria-label="版型名稱" maxlength="64"`)}${action('remove-pattern','移除',`data-id="${p.id}" class="ghost"`)}</div>`).join('')}</div></section>`}
       <section class="catalog-section"><div class="catalog-toolbar"><h3>${product ? '量體字段' : '版型尺碼數據'}</h3>${action('add-field','＋ 添加字段','class="secondary"')}</div>${product ? renderProductFields() : renderMatrix()}</section>
       <p class="catalog-error" role="alert" hidden></p><div class="dialog-actions catalog-footer"><span class="catalog-muted">資料保存在當前瀏覽器</span><button type="submit">保存${product ? '產品' : '版型'}</button></div>
     </form>`;
@@ -47,7 +47,7 @@
       ${f.type === 'number' ? label('最小值',input('min',f.min,'number')) + label('最大值',input('max',f.max,'number')) + label('淨體默認值',input('body',f.body,'number')) : ''}
       ${label('填寫提示 / 備註',input('hint',f.hint,'text','placeholder="例如：單位 cm、量法說明"'),'catalog-field-hint')}
       ${action('remove-field','刪除',`data-id="${f.id}" class="danger catalog-field-delete" aria-label="刪除${esc(f.name || '字段')}"`)}</div>
-      ${isChoice(f) ? renderChoiceEditor(f) : `<div class="catalog-defaults"><div class="catalog-defaults-heading"><strong>版型默認值</strong><span class="catalog-muted">${draft.patterns.length} 個版型 · 空白為未設定</span></div><div class="catalog-defaults-grid ${f.type === 'number' ? '' : 'catalog-text-defaults'}">${draft.patterns.map(p => label(p.name,input('default',f.defaults[p.id] ?? '',f.type === 'number' ? 'number' : 'text',`data-pattern-id="${p.id}" aria-label="${esc(f.name)} · ${esc(p.name)} 默認值"`))).join('') || '<span class="catalog-muted">尚未選擇版型</span>'}</div></div>`}</article>`).join('') || '<p class="catalog-muted">勾選版型並點擊「初始化產品字段」，或手動添加字段。</p>';
+      ${isChoice(f) ? renderChoiceEditor(f) : !draft.patterns.length ? '<p class="catalog-muted">未使用版型；師傅可直接錄入此字段。</p>' : `<div class="catalog-defaults"><div class="catalog-defaults-heading"><strong>版型默認值</strong><span class="catalog-muted">${draft.patterns.length} 個版型 · 空白為未設定</span></div><div class="catalog-defaults-grid ${f.type === 'number' ? '' : 'catalog-text-defaults'}">${draft.patterns.map(p => label(p.name,input('default',f.defaults[p.id] ?? '',f.type === 'number' ? 'number' : 'text',`data-pattern-id="${p.id}" aria-label="${esc(f.name)} · ${esc(p.name)} 默認值"`))).join('') || '<span class="catalog-muted">尚未選擇版型</span>'}</div></div>`}</article>`).join('') || '<p class="catalog-muted">勾選版型並點擊「初始化產品字段」，或手動添加字段。</p>';
   }
   function choicePreview(f) {
     const opts = choiceOptions(f);
@@ -58,8 +58,8 @@
   }
   function validate(value, product) {
     if (!value.name.trim()) throw new Error('請填寫名稱。');
-    if (!value.patterns.length) throw new Error('請至少添加或勾選一個版型。');
-    if (product && !value.garmentId) throw new Error('請選擇服裝。');
+    if (!product && !value.patterns.length) throw new Error('請至少添加一個版型。');
+    if (product && value.patterns.length && !value.garmentId) throw new Error('使用版型時請選擇服裝來源。');
     const unique = (items, title) => { const names = items.map(v => v.name.trim()); if (names.some(n => !n) || new Set(names).size !== names.length) throw new Error(`${title}不能為空或重複。`); };
     unique(value.patterns, '版型名稱'); unique(value.fields, '字段名稱');
     if (!value.fields.length) throw new Error('請至少添加一個字段。');
@@ -106,8 +106,8 @@
     const el = e.target;
     if (['type', 'pattern-name'].includes(el.dataset.key)) renderEditor();
     if (el.id === 'catalog-garment') {
-      if ((draft.fields.length || draft.patterns.length) && !confirm('切換服裝將清空已選版型和產品字段，是否繼續？')) { el.value=draft.garmentId; return; }
-      const g=data().garmentTemplates.find(v=>v.id===el.value); draft.garmentId=g?.id||''; draft.garmentName=g?.name||''; draft.patterns=[]; draft.fields=[]; renderEditor();
+      if (draft.patterns.length && !confirm('切換服裝將清空版型選擇及版型默認值，保留已有字段和通用選項。是否繼續？')) { el.value=draft.garmentId; return; }
+      const g=data().garmentTemplates.find(v=>v.id===el.value); draft.garmentId=g?.id||''; draft.garmentName=g?.name||''; draft.patterns=[]; draft.fields.forEach(f=>{ f.defaults={}; delete f.sourceFieldId; }); renderEditor();
     }
     if (el.dataset.pattern) {
       const id=el.dataset.pattern;
@@ -137,7 +137,7 @@
       validate(draft,kind==='product'); const s=data(), key=kind==='product'?'products':'garmentTemplates';
       draft.name=draft.name.trim(); draft.patterns.forEach(p=>p.name=p.name.trim()); draft.fields.forEach(f=>f.name=f.name.trim());
       if(s[key].some(v=>v.id!==draft.id && v.name===draft.name && (kind==='pattern'||v.gender===draft.gender))) throw new Error('同名配置已存在，請修改名稱或編輯已有配置。');
-      draft.fields.forEach(f=>{ if(isChoice(f)) { f.scope='common'; f.options=choiceOptions(f).join(','); f.defaults={}; f.body=''; f.min=''; f.max=''; } else f.scope='pattern'; });
+      draft.fields.forEach(f=>{ if(isChoice(f)) { f.scope='common'; f.options=choiceOptions(f).join(','); f.defaults={}; f.body=''; f.min=''; f.max=''; } else f.scope=draft.patterns.length?'pattern':'direct'; });
       draft.fields.sort((a,b)=>Number(a.sort)-Number(b.sort)); draft.updatedAt=nowText();
       const i=s[key].findIndex(v=>v.id===draft.id); if(i<0)s[key].push(copy(draft)); else s[key][i]=copy(draft);
       saveStore(s); dialog.close(); renderLists(); showToast('配置已保存。');

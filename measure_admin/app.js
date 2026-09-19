@@ -438,7 +438,7 @@ function openRecordEditor(measurementId) {
 }
 
 function measurementSummary(record) {
-  if (record.product_measurements?.length) return record.product_measurements.map(product => `${product.product_name}［${product.pattern_name}］：${product.fields.map(field => `${field.name} ${field.value === '' ? '未填寫' : field.value}${field.mode === 'body' ? '（淨體）' : field.mode === 'adjustment' ? `（版型 ${field.baseline}，加減 ${field.adjustment || '0'}，成衣）` : ''}`).join('、')}`).join('；');
+  if (record.product_measurements?.length) return record.product_measurements.map(product => `${product.product_name}${product.pattern_name ? `［${product.pattern_name}］` : ''}：${product.fields.map(field => `${field.name} ${field.value === '' ? '未填寫' : field.value}${field.mode === 'body' ? '（淨體）' : field.mode === 'adjustment' ? `（版型 ${field.baseline}，加減 ${field.adjustment || '0'}，成衣）` : ''}`).join('、')}`).join('；');
   const entries = Object.entries(record.measurements || {});
   if (!entries.length) return "未填寫量體字段";
   return entries.map(([key, value]) => `${measurementLabels[key] || key}: ${value}`).join("；");
