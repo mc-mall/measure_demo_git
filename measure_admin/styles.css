@@ -35,6 +35,8 @@
 .catalog-field-grid > .catalog-field-type { flex-basis: 100px; }
 .catalog-field-grid > .catalog-field-sort { flex-basis: 64px; }
 .catalog-field-grid > .catalog-check { flex-basis: 58px; }
+.catalog-field-grid > .catalog-warning-check { flex-basis: 92px; white-space: nowrap; }
+.catalog-warning-preview { margin: 10px 0 0; color: var(--red); font-size: 13px; line-height: 1.5; }
 .catalog-field-grid > .catalog-field-hint { flex: 1 1 240px; }
 .catalog-field-grid > .catalog-field-options { flex: 1 1 220px; }
 .catalog-dialog .catalog-field input, .catalog-dialog .catalog-field select { min-height: 36px; padding: 7px 8px; font-size: 14px; }

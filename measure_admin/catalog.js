@@ -6,7 +6,7 @@
   let draft, kind;
   const isChoice = f => ['select','multiselect'].includes(f.type);
   const choiceOptions = f => String(f.options || '').split(/[,，、\n]/).map(v=>v.trim()).filter(Boolean);
-  const field = (name = '') => ({ id: uid('F'), name, type: 'number', sort: 1, required: false, body: '', min: '', max: '', hint: '', options: '', defaults: {} });
+  const field = (name = '') => ({ id: uid('F'), name, type: 'number', sort: 1, required: false, warningEnabled: false, body: '', min: '', max: '', hint: '', options: '', defaults: {} });
   const input = (key, value, type = 'text', extra = '') => `<input data-key="${key}" type="${type}" value="${esc(value)}" ${type === 'number' ? 'step="any"' : ''} ${extra}>`;
   const label = (text, control, className = '') => `<label class="${className}"><span>${text}</span>${control}</label>`;
   const action = (id, text, extra = '') => `<button type="button" data-catalog="${id}" ${extra}>${text}</button>`;
@@ -43,10 +43,11 @@
   }
   function renderProductFields() {
     return draft.fields.map(f => `<article class="catalog-field" data-field="${f.id}"><div class="catalog-field-grid">
-      ${label('字段名稱 *',input('name',f.name,'text','required'),'catalog-field-name')}${label('類型',`<select data-key="type">${Object.entries({text:'文本',number:'數字',select:'單選',multiselect:'多選'}).map(([v,n]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${n}</option>`).join('')}</select>`,'catalog-field-type')}${label('排序',input('sort',f.sort,'number','min="0"'),'catalog-field-sort')}<label class="catalog-check"><input data-key="required" type="checkbox" ${f.required ? 'checked' : ''}>必填</label>
+      ${label('字段名稱 *',input('name',f.name,'text','required'),'catalog-field-name')}${label('類型',`<select data-key="type">${Object.entries({text:'文本',number:'數字',select:'單選',multiselect:'多選'}).map(([v,n]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${n}</option>`).join('')}</select>`,'catalog-field-type')}${label('排序',input('sort',f.sort,'number','min="0"'),'catalog-field-sort')}<label class="catalog-check"><input data-key="required" type="checkbox" ${f.required ? 'checked' : ''}>必填</label><label class="catalog-check catalog-warning-check"><input data-key="warningEnabled" type="checkbox" ${f.warningEnabled ? 'checked' : ''}>是否警告</label>
       ${f.type === 'number' ? label('最小值',input('min',f.min,'number')) + label('最大值',input('max',f.max,'number')) + label('淨體默認值',input('body',f.body,'number')) : ''}
       ${label('填寫提示 / 備註',input('hint',f.hint,'text','placeholder="例如：單位 cm、量法說明"'),'catalog-field-hint')}
       ${action('remove-field','刪除',`data-id="${f.id}" class="danger catalog-field-delete" aria-label="刪除${esc(f.name || '字段')}"`)}</div>
+      <p class="catalog-warning-preview" ${f.warningEnabled ? '' : 'hidden'}>师傅操作此字段时提示：注意放量，及时调整尺码版给客人重试</p>
       ${isChoice(f) ? renderChoiceEditor(f) : !draft.patterns.length ? '<p class="catalog-muted">未使用版型；師傅可直接錄入此字段。</p>' : `<div class="catalog-defaults"><div class="catalog-defaults-heading"><strong>版型默認值</strong><span class="catalog-muted">${draft.patterns.length} 個版型 · 空白為未設定</span></div><div class="catalog-defaults-grid ${f.type === 'number' ? '' : 'catalog-text-defaults'}">${draft.patterns.map(p => label(p.name,input('default',f.defaults[p.id] ?? '',f.type === 'number' ? 'number' : 'text',`data-pattern-id="${p.id}" aria-label="${esc(f.name)} · ${esc(p.name)} 默認值"`))).join('') || '<span class="catalog-muted">尚未選擇版型</span>'}</div></div>`}</article>`).join('') || '<p class="catalog-muted">勾選版型並點擊「初始化產品字段」，或手動添加字段。</p>';
   }
   function choicePreview(f) {
@@ -100,6 +101,7 @@
     const f = draft.fields.find(v=>v.id===el.closest('[data-field]')?.dataset.field);
     if (key === 'default') f.defaults[el.dataset.patternId] = el.value;
     else (f || draft)[key] = el.type === 'checkbox' ? el.checked : el.value;
+    if (key === 'warningEnabled' && f) el.closest('[data-field]').querySelector('.catalog-warning-preview').hidden = !f.warningEnabled;
     if (key === 'options' && f) el.closest('[data-field]').querySelector('.catalog-choice-preview-list').innerHTML=choicePreview(f);
   });
   dialog.addEventListener('change', async e => {
