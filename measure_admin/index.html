@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260916-multi-receipt" />
+    <link rel="stylesheet" href="./styles.css?v=20260919-common-options" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -44,6 +44,8 @@
           <button type="button" data-view="records-male">男士量體記錄</button>
           <button type="button" data-view="records-female">女士量體記錄</button>
           <span class="nav-section" data-owner-only>系統配置</span>
+          <button class="nav-child" type="button" data-view="patterns" data-owner-only>衣服版型管理</button>
+          <button class="nav-child" type="button" data-view="products" data-owner-only>產品配置</button>
           <button class="nav-child" type="button" data-view="subaccounts" data-owner-only>子賬號管理</button>
         </nav>
         <button class="ghost" type="button" id="logout">退出登入</button>
@@ -58,6 +60,14 @@
           <div class="current-user" id="current-user" hidden><strong id="current-user-name"></strong><span id="current-user-role"></span></div>
         </header>
 
+        <section class="view" id="view-patterns">
+          <div class="panel list-toolbar"><div><h3>衣服版型管理</h3><p>按服裝維護版型及標準尺碼，再用於初始化產品字段。</p></div><button type="button" data-catalog="new-pattern">創建服裝版型</button></div>
+          <div class="panel table-wrap"><table id="pattern-table"></table></div>
+        </section>
+        <section class="view" id="view-products">
+          <div class="panel list-toolbar"><div><h3>產品配置</h3><p>選擇服裝與版型，初始化量體字段後可獨立調整。</p></div><button type="button" data-catalog="new-product">創建產品</button></div>
+          <div class="panel table-wrap"><table id="product-table"></table></div>
+        </section>
         <section class="view is-active" id="view-dashboard">
           <div class="metric-grid">
             <article><span>裁縫師</span><strong id="metric-tailors">0</strong></article>
@@ -413,7 +423,9 @@
       <div class="analysis-result-toolbar"><label><span>搜尋員工</span><input id="analysis-result-search" type="search" placeholder="員工編號或姓名" /></label><button class="secondary" type="button" id="export-analysis-results">導出分析結果</button></div>
       <div class="table-wrap"><table id="analysis-result-table"></table></div>
     </dialog>
+    <dialog id="catalog-dialog" class="catalog-dialog"></dialog>
     <script src="../shared/workflow.js?v=20260916-multi-receipt"></script>
-    <script src="./app.js?v=20260916-multi-receipt"></script>
+    <script src="./app.js?v=20260919-product-measurements"></script>
+    <script src="./catalog.js?v=20260919-common-options"></script>
   </body>
 </html>

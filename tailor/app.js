@@ -490,8 +490,10 @@ function renderFields() {
 
 function configureFlowForEmployee() {
   const isFemale = isFemaleEmployee();
+  const configured = TailorProducts.start();
   state.flow = isFemale ? [0, 1, 2, 3, 5, 6, 10, 9, 8] : [0, 1, 2, 3, 10, 9, 8];
-  const labels = isFemale
+  if (configured) state.flow = [0, 1, 11, 9, 8];
+  const labels = configured ? ["登入", "基本資料", "產品量身", "確認提交", "完成"] : isFemale
     ? ["登入", "基本資料", "上衣套碼", "褲子", "一步裙", "連衣裙", "其它產品", "確認提交", "完成"]
     : ["登入", "基本資料", "上衣套碼", "褲子", "其它產品", "確認提交", "完成"];
   steps.forEach((step, index) => {
@@ -713,6 +715,7 @@ function buildRecord() {
     measured_at: state.lockedRecord?.measured_at || "",
     employee: state.employee,
     measurements: values,
+    ...(TailorProducts.enabled() ? TailorProducts.record() : {}),
     body_notes: bodyNotes,
     remark,
     final_remark: [bodyNotes.length ? `特殊體型：${bodyNotes.join("、")}` : "", remark].filter(Boolean).join("；"),
@@ -753,9 +756,11 @@ function renderSummary(target, record) {
     ["特殊體型", record.body_notes.length ? record.body_notes.join("、") : "未選擇"],
   ];
   target.innerHTML = `<div class="summary-grid">${rows.map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>`;
+  target.innerHTML += TailorProducts.summary(record);
 }
 
 function resetForNextRecord() {
+  TailorProducts.reset();
   state.employee = null;
   state.lockedRecord = null;
   document.getElementById("employee-card").hidden = true;
@@ -877,6 +882,11 @@ steps.forEach((step) => {
 });
 
 document.getElementById("submit-measure").addEventListener("click", async () => {
+  if (state.lockedRecord || !state.employee) return;
+  if (TailorProducts.enabled()) {
+    const error = TailorProducts.validateAll();
+    if (error) { showToast(error); setPage(11); return; }
+  }
   const groupPageMap = { suit: 2, pants: 3, shirt: 4, skirt: 5, dress: 6, other: 10 };
   for (const group of activeGarmentGroups()) {
     const error = validateGroup(group);
@@ -938,6 +948,7 @@ document.addEventListener("change", (event) => {
 });
 
 document.getElementById("new-record").addEventListener("click", resetForNextRecord);
+document.getElementById("measure-form").addEventListener("submit", event => event.preventDefault());
 
 renderFields();
 configureFlowForEmployee();

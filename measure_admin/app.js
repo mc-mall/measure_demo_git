@@ -438,6 +438,7 @@ function openRecordEditor(measurementId) {
 }
 
 function measurementSummary(record) {
+  if (record.product_measurements?.length) return record.product_measurements.map(product => `${product.product_name}［${product.pattern_name}］：${product.fields.map(field => `${field.name} ${field.value === '' ? '未填寫' : field.value}${field.mode === 'body' ? '（淨體）' : field.mode === 'adjustment' ? `（版型 ${field.baseline}，加減 ${field.adjustment || '0'}，成衣）` : ''}`).join('、')}`).join('；');
   const entries = Object.entries(record.measurements || {});
   if (!entries.length) return "未填寫量體字段";
   return entries.map(([key, value]) => `${measurementLabels[key] || key}: ${value}`).join("；");
@@ -569,7 +570,7 @@ function renderRecords(gender) {
     .slice(start, start + paging.pageSize)
     .map((record) => `
       <tr>
-        <td>${versionLabel(record)}</td><td>${record.measurement_id}</td><td>${record.created_at || record.measured_at || "-"}</td><td>${record.tailor_name || "-"}</td><td>${record.employee?.employee_id || "-"}</td><td>${record.employee?.customer_name || "-"}</td><td>${orderLabel(record.employee?.order_id)}</td><td>${record.body_notes?.join("、") || "-"}</td><td>${measurementSummary(record)}</td><td>${followupCell(record)}</td><td>${hasPermission("measurement_followup") ? `<button type="button" data-followup-record="${record.measurement_id}">跟進</button>` : "-"}</td>
+        <td>${versionLabel(record)}</td><td>${record.measurement_id}</td><td>${record.created_at || record.measured_at || "-"}</td><td>${record.tailor_name || "-"}</td><td>${record.employee?.employee_id || "-"}</td><td>${record.employee?.customer_name || "-"}</td><td>${orderLabel(record.employee?.order_id)}</td><td>${record.body_notes?.join("、") || "-"}</td><td>${escapeHtml(measurementSummary(record))}</td><td>${followupCell(record)}</td><td>${hasPermission("measurement_followup") ? `<button type="button" data-followup-record="${record.measurement_id}">跟進</button>` : "-"}</td>
       </tr>
     `);
   renderTable(gender === "男" ? "male-record-table" : "female-record-table", ["版本", "記錄ID", "創建時間", "裁縫師", "員工編號", "姓名", "訂單 / 公司", "特殊體型", "量體字段", "跟進事項", "操作"], rows, "暫無量體記錄");
@@ -1172,7 +1173,7 @@ function measurementImportRecords(rows) {
 function exportMeasurementTemplate() {
   const store = loadStore();
   const measurementKeys = Object.keys(measurementLabels);
-  const headers = ["訂單號", "員工編號", "姓名", "性別", "基於版本", "新版本", "數據階段", "裁縫師", ...Object.values(measurementLabels), "備註"];
+  const headers = ["訂單號", "員工編號", "姓名", "性別", "基於版本", "新版本", "數據階段", "裁縫師", ...Object.values(measurementLabels), "產品版型量身明細", "備註"];
   const rows = store.employees.map((employee) => {
     const latest = employeeRecords(employee)[0];
     const allVersions = store.measurements.filter((record) => record.employee?.order_id === employee.order_id && record.employee?.employee_id === employee.employee_id).map((record) => Number(record.version || 0));
@@ -1518,7 +1519,7 @@ async function exportRecords(forcedGender = "", panel = document) {
     return;
   }
   const records = accessibleMeasurements().filter((record) => recordMatchesExportFilters(record, filters));
-  const headers = ["記錄ID", "性別", "量體時間", "裁縫師", "訂單號", "公司", "員工編號", "姓名", ...Object.values(measurementLabels), "備註"];
+  const headers = ["記錄ID", "性別", "量體時間", "裁縫師", "訂單號", "公司", "員工編號", "姓名", ...Object.values(measurementLabels), "產品版型量身明細", "備註"];
   const keys = Object.keys(measurementLabels);
   const lines = [
     headers.map(csvEscape).join(","),
@@ -1533,6 +1534,7 @@ async function exportRecords(forcedGender = "", panel = document) {
         record.employee?.employee_id,
         record.employee?.customer_name,
         ...keys.map((key) => record.measurements?.[key] || ""),
+        record.product_measurements?.length ? measurementSummary(record) : "",
         recordRemark(record),
       ];
       return row.map(csvEscape).join(",");
@@ -1902,7 +1904,7 @@ document.getElementById("record-edit-form").addEventListener("submit", (event) =
   const store = loadStore();
   const record = store.measurements.find((item) => item.measurement_id === data.measurement_id);
   if (!record) return;
-  record.measurements = Object.fromEntries(Object.keys(measurementLabels).filter((key) => String(data[key] || "").trim()).map((key) => [key, String(data[key]).trim()]));
+  record.measurements = { ...Object.fromEntries(Object.entries(record.measurements || {}).filter(([key]) => !Object.hasOwn(measurementLabels, key))), ...Object.fromEntries(Object.keys(measurementLabels).filter((key) => String(data[key] || "").trim()).map((key) => [key, String(data[key]).trim()])) };
   record.final_remark = String(data.remark || "").trim();
   record.updated_at = new Date().toLocaleString("zh-CN", { hour12: false }).replaceAll("/", "-");
   saveStore(store);

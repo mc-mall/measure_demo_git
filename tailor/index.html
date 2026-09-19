@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>MC 量體資料收集</title>
-    <link rel="stylesheet" href="./styles.css?v=20260916-appointment-names" />
+    <link rel="stylesheet" href="./styles.css?v=20260919-common-options" />
   </head>
   <body>
     <main class="app-shell">
@@ -91,6 +91,11 @@
       </section>
 
       <form id="measure-form">
+        <section class="page" data-page="11">
+          <div class="section-head"><p>Product Measurement</p><h2>按產品量身</h2></div>
+          <div id="configured-products"></div>
+          <div class="button-row"><button class="secondary-action" type="button" id="product-prev">上一項</button><button class="primary-action" type="button" id="product-next">下一產品</button></div>
+        </section>
         <section class="page" data-page="2" data-garment="suit">
           <div class="section-head">
             <p>Step 2</p>
@@ -246,6 +251,7 @@
     </main>
 
     <script src="../shared/workflow.js?v=20260916-appointment-names"></script>
-    <script src="./app.js?v=20260916-appointment-names"></script>
+    <script src="./products.js?v=20260919-common-options"></script>
+    <script src="./app.js?v=20260919-products"></script>
   </body>
 </html>
