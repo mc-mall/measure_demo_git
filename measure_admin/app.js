@@ -261,7 +261,7 @@ function renderOrders() {
     <tr>
       <td>${escapeHtml(item.order_id)}</td><td>${escapeHtml(item.company_name)}</td>
       <td>${garmentSummary(item, "男")}</td><td>${garmentSummary(item, "女")}</td><td>${quantityRuleSummary(item)}</td>
-      <td><div class="row-actions"><button type="button" data-order-progress="${escapeHtml(item.order_id)}">執行進度</button><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button></div></td>
+      <td><div class="row-actions"><button type="button" data-order-progress="${escapeHtml(item.order_id)}">變更訂單進度</button><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button></div></td>
     </tr>
   `);
   renderTable("order-table", ["訂單號", "公司名", "男士服裝配置", "女士服裝配置", "組合數量限制", "操作"], rows);
@@ -518,7 +518,7 @@ function openAfterSaleDetail(recordId) {
   document.getElementById("after-sale-detail-title").textContent = `售後詳情 · ${record.id}`;
   document.getElementById("after-sale-detail-subtitle").textContent = `${record.employee_id} · ${record.employee_name}｜${orderLabel(record.order_id)}`;
   document.getElementById("after-sale-detail-content").innerHTML = `
-    <div class="after-sale-detail-meta"><div><span>狀態</span><strong>${escapeHtml(record.status)}</strong></div><div><span>登記時間</span><strong>${escapeHtml(record.created_at)}</strong></div><div><span>最後更新</span><strong>${escapeHtml(record.updated_at || record.created_at)}</strong></div></div>
+    <div class="after-sale-detail-meta"><div><span>狀態</span><strong>${escapeHtml(record.status)}</strong></div><div><span>預計交付日期</span><strong>${escapeHtml(record.estimated_delivery_date || "未填寫")}</strong></div><div><span>登記時間</span><strong>${escapeHtml(record.created_at)}</strong></div><div><span>最後更新</span><strong>${escapeHtml(record.updated_at || record.created_at)}</strong></div></div>
     <div class="table-wrap"><table><thead><tr><th>服裝</th><th>申請數量</th><th>累計簽收</th><th>換貨 / 修改需求</th><th>服裝處理</th></tr></thead><tbody>${(record.items || []).map((item) => `<tr><td>${escapeHtml(item.garment_name)}</td><td>${Number(item.quantity) || 0}</td><td>${escapeHtml(MeasureWorkflow.receivedLabel(record, item))}</td><td class="wrap-cell">${escapeHtml(item.demand)}</td><td>${item.closed ? `已關閉<br>${escapeHtml(item.closed.reason)}<br>${escapeHtml(item.closed.operator)} · ${escapeHtml(item.closed.closed_at)}` : ["提交售後", "門市收貨"].includes(record.status) ? `<button type="button" data-close-sale-item="${escapeHtml(record.id)}" data-item-index="${record.items.indexOf(item)}">關閉此服裝申請</button>` : "處理中"}</td></tr>`).join("")}</tbody></table></div>
     <p class="after-sale-detail-remark"><strong>補充說明：</strong>${escapeHtml(record.remark || "-")}</p>
     <div class="after-sale-history"><h4>狀態記錄</h4><div class="table-wrap"><table><thead><tr><th>時間</th><th>狀態 / 操作</th><th>操作人</th></tr></thead><tbody>${(record.status_history || []).map(item => `<tr><td>${escapeHtml(item.changed_at)}</td><td>${escapeHtml(item.action || item.status)}</td><td>${escapeHtml(item.operator || "未記錄")}</td></tr>`).join("")}</tbody></table></div></div>`;
@@ -530,7 +530,28 @@ function openAfterSaleDetail(recordId) {
   document.getElementById("after-sale-detail-dialog").showModal();
 }
 
-function applyAfterSaleStatus() {
+function requestFactoryDeliveryDate(context) {
+  const dialog = document.getElementById("factory-delivery-dialog");
+  const form = document.getElementById("factory-delivery-form");
+  const input = document.getElementById("factory-delivery-date");
+  document.getElementById("factory-delivery-context").textContent = context;
+  form.reset();
+  input.setCustomValidity("");
+  dialog.returnValue = "";
+  return new Promise(resolve => {
+    input.oninput = () => input.setCustomValidity("");
+    form.onsubmit = event => {
+      event.preventDefault();
+      input.setCustomValidity(MeasureWorkflow.validDeliveryDate(input.value) ? "" : "請填寫有效的預計交付日期。");
+      if (form.reportValidity()) dialog.close(input.value);
+    };
+    document.getElementById("cancel-factory-delivery").onclick = () => dialog.close("");
+    dialog.addEventListener("close", () => resolve(dialog.returnValue || null), {once: true});
+    dialog.showModal();
+  });
+}
+
+async function applyAfterSaleStatus() {
   if (!hasPermission("after_sales")) return;
   const ids = [...document.querySelectorAll(".after-sale-row-check:checked")].map(input => input.value);
   const status = document.getElementById("after-sale-batch-status").value;
@@ -539,17 +560,25 @@ function applyAfterSaleStatus() {
   if (!records.length || !status) return showToast("請選擇記錄與下一階段。");
   if (records.some(record => MeasureWorkflow.after.indexOf(record.status) < 1 || MeasureWorkflow.after[MeasureWorkflow.after.indexOf(record.status) + 1] !== status)) return showToast("請逐筆核對門市收貨；批量處理僅支持已收貨記錄順序進入下一階段。");
   if (status === "已下單到工廠" && records.some(record => !MeasureWorkflow.readyForFactory(record))) return showToast("仍有服裝未收齊，請完成簽收或關閉其申請。");
-  if (!confirm(`確認將 ${records.length} 筆售後更新為「${status}」？`)) return;
-  records.forEach(record => advanceAfterSale(record, status));
+  let deliveryDate;
+  if (status === "已下單到工廠") {
+    deliveryDate = await requestFactoryDeliveryDate(`為 ${records.length} 筆售後填寫預計交付日期。`);
+    if (!deliveryDate) return;
+  } else if (!confirm(`確認將 ${records.length} 筆售後更新為「${status}」？`)) return;
+  records.forEach(record => advanceAfterSale(record, status, deliveryDate));
   saveStore(store);
   renderAfterSales();
   showToast("售後進度已更新。");
 }
-function advanceAfterSale(record, status) {
+function advanceAfterSale(record, status, deliveryDate) {
+  if (status === "已下單到工廠") {
+    if (!MeasureWorkflow.validDeliveryDate(deliveryDate)) throw new Error("請填寫有效的預計交付日期。");
+    record.estimated_delivery_date = deliveryDate;
+  }
   record.status = status;
   record.updated_at = nowText();
   record.status_history ||= [];
-  record.status_history.push({status, changed_at: record.updated_at, operator: currentUser.username, operator_id: currentUser.id});
+  record.status_history.push({status, ...(status === "已下單到工廠" ? {estimated_delivery_date: deliveryDate} : {}), changed_at: record.updated_at, operator: currentUser.username, operator_id: currentUser.id});
 }
 
 function renderRecords(gender) {
@@ -1071,10 +1100,15 @@ async function unzipXlsx(buffer) {
   return entries;
 }
 
-async function parseXlsxRows(buffer) {
+async function parseXlsxRows(buffer, options = {}) {
   const entries = await unzipXlsx(buffer);
   const decoder = new TextDecoder();
   const parser = new DOMParser();
+  const workbook = findZipEntry(entries, "xl/workbook.xml");
+  if (options.reject1904 && workbook) {
+    const properties = parser.parseFromString(decoder.decode(workbook.data), "application/xml").getElementsByTagName("workbookPr")[0];
+    if (["1", "true"].includes(properties?.getAttribute("date1904"))) throw new Error("請將 Excel 1904 日期系統轉為標準 1900 日期系統，或另存 CSV 後導入。");
+  }
   const sharedEntry = findZipEntry(entries, "xl/sharedStrings.xml");
   const sharedStrings = sharedEntry
     ? [...parser.parseFromString(decoder.decode(sharedEntry.data), "application/xml").getElementsByTagName("si")].map(readTextXml)
@@ -1816,6 +1850,7 @@ document.getElementById("employee-form").addEventListener("submit", (event) => {
     signature_confirmation: identityChanged ? null : current?.signature_confirmation || null,
     verified_at: identityChanged ? "" : current?.verified_at || "",
     order_progress: identityChanged ? 0 : current?.order_progress || 0,
+    estimated_delivery_date: identityChanged ? "" : current?.estimated_delivery_date || "",
     order_progress_history: identityChanged ? [] : current?.order_progress_history || [],
   });
   event.currentTarget.reset();
@@ -2065,31 +2100,69 @@ if (currentUser) {
 })();
 
 function openOrderProgress(orderId) {
+  if (!isOwner()) return;
   const store = loadStore();
   const dialog = document.getElementById("order-progress-dialog");
+  const order = store.orders.find(item => item.order_id === orderId);
   dialog.dataset.orderId = orderId;
-  document.getElementById("order-progress-content").innerHTML = `<table><thead><tr><th>員工</th><th>已完成階段</th><th>下一步</th><th>更新記錄</th></tr></thead><tbody>${store.employees.filter(employee => employee.order_id === orderId).map(employee => {
+  document.getElementById("order-progress-subtitle").textContent = `${orderId} · ${order?.company_name || ""}`;
+  document.getElementById("order-progress-batch-stage").innerHTML = '<option value="">選擇下一階段</option>' + MeasureWorkflow.forward.map((status, index) => `<option value="${index + 1}">${escapeHtml(status)}</option>`).join("");
+  const employees = store.employees.filter(employee => employee.order_id === orderId);
+  document.getElementById("order-progress-content").innerHTML = `<table><thead><tr><th>選擇</th><th>員工</th><th>已完成階段</th><th>變更進度</th><th>預計交付日期</th><th>更新記錄</th></tr></thead><tbody>${employees.map(employee => {
     const stage = MeasureWorkflow.progress(store, employee);
-    return `<tr><td>${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</td><td>${stage ? MeasureWorkflow.forward[stage - 1] : "尚未確認服裝"}</td><td>${stage >= 3 && stage < 6 ? `<button type="button" data-advance-order="${escapeHtml(employee.id)}">確認${MeasureWorkflow.forward[stage]}</button>` : stage === 6 ? "流程已完成" : `等待員工 / 裁縫完成${MeasureWorkflow.forward[stage]}`}</td><td>${(employee.order_progress_history || []).map(item => `${escapeHtml(item.status)} · ${escapeHtml(item.changed_at)}`).join("<br>") || "-"}</td></tr>`;
-  }).join("")}</tbody></table>`;
+    return `<tr><td><input type="checkbox" class="order-progress-check" value="${escapeHtml(employee.id)}" aria-label="選擇 ${escapeHtml(employee.employee_id)}" ${stage >= 6 ? "disabled" : ""}></td><td>${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</td><td>${stage ? escapeHtml(MeasureWorkflow.forward[stage - 1]) : "尚未確認服裝"}（${stage} / 6）</td><td>${stage < 6 ? `<button type="button" data-advance-order="${escapeHtml(employee.id)}">確認${escapeHtml(MeasureWorkflow.forward[stage])}</button>` : "流程已完成"}</td><td>${escapeHtml(employee.estimated_delivery_date || "未填寫")}</td><td>${(employee.order_progress_history || []).map(item => `${escapeHtml(item.status)} · ${escapeHtml(item.changed_at)}<br>操作人：${escapeHtml(item.operator || "未記錄")}${item.estimated_delivery_date ? `<br>預計交付：${escapeHtml(item.estimated_delivery_date)}` : ""}`).join("<hr>") || "暫無後台更新記錄"}</td></tr>`;
+  }).join("") || '<tr><td colspan="6">此訂單暫無員工</td></tr>'}</tbody></table>`;
   if (!dialog.open) dialog.showModal();
 }
-document.addEventListener("click", event => {
+
+async function advanceOrderProgress(ids, targetStage) {
+  if (!isOwner()) return;
+  const orderId = document.getElementById("order-progress-dialog").dataset.orderId;
+  const store = loadStore();
+  const employees = store.employees.filter(item => item.order_id === orderId && ids.includes(item.id));
+  if (!employees.length || employees.length !== ids.length || !Number.isInteger(targetStage) || targetStage < 1 || targetStage > 6) return showToast("請選擇員工與下一階段。");
+  if (employees.some(employee => MeasureWorkflow.progress(store, employee) + 1 !== targetStage)) return showToast("請選擇同一進度的員工，並按流程順序進入下一階段。");
+  const status = MeasureWorkflow.forward[targetStage - 1];
+  let deliveryDate;
+  if (targetStage === 4) {
+    deliveryDate = await requestFactoryDeliveryDate(`${employees.length === 1 ? employees[0].employee_id + " · " + employees[0].name : employees.length + " 名員工"}，確認${status}。`);
+    if (!deliveryDate) return;
+    if (!MeasureWorkflow.validDeliveryDate(deliveryDate)) return showToast("請填寫有效的預計交付日期。");
+  } else if (!confirm(`確認將 ${employees.length} 名員工的訂單進度更新為「${status}」？`)) return;
+  // Re-read after the dialog so a concurrent employee/tailor update is never overwritten.
+  const latest = loadStore();
+  const selected = latest.employees.filter(item => item.order_id === orderId && ids.includes(item.id));
+  if (!isOwner() || selected.length !== ids.length || selected.some(employee => MeasureWorkflow.progress(latest, employee) + 1 !== targetStage)) {
+    openOrderProgress(orderId);
+    return showToast("訂單進度已變動，請核對後重新操作。");
+  }
+  const changedAt = nowText();
+  selected.forEach(employee => {
+    employee.order_progress = targetStage;
+    if (targetStage === 4) employee.estimated_delivery_date = deliveryDate;
+    employee.order_progress_history ||= [];
+    employee.order_progress_history.push({status, changed_at: changedAt, operator: currentUser.username, operator_id: currentUser.id, source: "admin", ...(targetStage === 4 ? {estimated_delivery_date: deliveryDate} : {})});
+  });
+  saveStore(latest);
+  openOrderProgress(orderId);
+  showToast(`已更新 ${selected.length} 名員工的訂單進度，員工端可同步查看。`);
+}
+
+document.addEventListener("click", async event => {
   const button = event.target.closest("button");
   if (!button || !currentUser) return;
   if ((button.dataset.orderProgress || button.dataset.advanceOrder) && !isOwner()) return;
   if (button.dataset.orderProgress) openOrderProgress(button.dataset.orderProgress);
+  if (button.id === "apply-order-progress") {
+    const ids = [...document.querySelectorAll(".order-progress-check:checked")].map(input => input.value);
+    await advanceOrderProgress(ids, Number(document.getElementById("order-progress-batch-stage").value));
+    return;
+  }
   if (button.dataset.advanceOrder) {
     const store = loadStore();
     const employee = store.employees.find(item => item.id === button.dataset.advanceOrder);
-    if (!employee) return;
-    const stage = MeasureWorkflow.progress(store, employee);
-    if (stage < 3 || stage >= 6 || !confirm(`確認 ${employee.name}：${MeasureWorkflow.forward[stage]}？`)) return;
-    employee.order_progress = stage + 1;
-    employee.order_progress_history ||= [];
-    employee.order_progress_history.push({status: MeasureWorkflow.forward[stage], changed_at: nowText(), operator: currentUser?.username});
-    saveStore(store);
-    openOrderProgress(employee.order_id);
+    if (employee) await advanceOrderProgress([employee.id], MeasureWorkflow.progress(store, employee) + 1);
+    return;
   }
   const id = button.dataset.receiveAfterSale || button.dataset.advanceAfterSale || button.dataset.closeSaleItem;
   if (!id || !hasPermission("after_sales")) return;
@@ -2121,8 +2194,12 @@ document.addEventListener("click", event => {
     record.status_history.at(-1).action = `第 ${record.receipts.length} 次簽收`;
   } else {
     if (stage < 1 || stage >= 4 || (stage === 1 && !MeasureWorkflow.readyForFactory(record))) return showToast("請先收齊仍需處理的服裝或關閉其申請。");
-    if (!confirm(`確認${MeasureWorkflow.after[stage + 1]}？`)) return;
-    advanceAfterSale(record, MeasureWorkflow.after[stage + 1]);
+    let deliveryDate;
+    if (stage === 1) {
+      deliveryDate = await requestFactoryDeliveryDate(`售後 ${record.id} · ${record.employee_name}`);
+      if (!deliveryDate) return;
+    } else if (!confirm(`確認${MeasureWorkflow.after[stage + 1]}？`)) return;
+    advanceAfterSale(record, MeasureWorkflow.after[stage + 1], deliveryDate);
   }
   saveStore(store);
   document.getElementById("after-sale-detail-dialog").close();

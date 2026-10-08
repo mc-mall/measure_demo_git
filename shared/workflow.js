@@ -112,6 +112,11 @@ function garments(store, employee) {
   const order = store.orders.find(item => item.order_id === employee.order_id);
   return (order?.garments || []).filter(item => item.gender === employee.gender).map(item => ({id: item.id || item.name, name: item.name, quantity: Number(item.default_quantity) || 1}));
 }
+function validDeliveryDate(value) {
+  if (typeof value !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value) || value.startsWith("0000")) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
 function receiptBatches(record) { return Array.isArray(record.receipts) ? record.receipts : record.receipt ? [record.receipt] : []; }
 function remainingQuantity(record, item) { return item.closed ? 0 : Math.max(0, Number(item.quantity) - (receivedQuantity(record, item) || 0)); }
 function readyForFactory(record) { const active = record.items.filter(item => !item.closed); return active.length > 0 && active.every(item => remainingQuantity(record, item) === 0); }
@@ -126,6 +131,6 @@ function receivedLabel(record, item) {
   const quantity = receivedQuantity(record, item);
   return quantity !== null ? `${quantity} 件` : record.status === after[0] && !record.receipt ? "待簽收" : "未記錄";
 }
-return {key, forward, after, read, normalize, progress, garments, seedStore, receivedQuantity, receivedLabel, receiptBatches, remainingQuantity, readyForFactory};
+return {validDeliveryDate, key, forward, after, read, normalize, progress, garments, seedStore, receivedQuantity, receivedLabel, receiptBatches, remainingQuantity, readyForFactory};
 })();
 MeasureWorkflow.read();

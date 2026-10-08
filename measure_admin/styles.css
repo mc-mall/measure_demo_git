@@ -786,3 +786,13 @@ td {
 .receipt-panel h4, .receipt-panel p { margin: 0; }
 .receipt-panel .receipt-check { display: flex; align-items: center; gap: 8px; }
 .receipt-panel .receipt-check input { flex: 0 0 auto; width: auto; margin: 0; }
+
+.order-progress-check { width: 18px; height: 18px; min-height: auto; }
+#order-progress-dialog .after-sale-batch-bar { margin-bottom: 16px; flex-wrap: wrap; }
+
+#status-import-dialog .after-sale-batch-bar { flex-wrap: wrap; }
+#status-import-preview { max-height: 45vh; overflow: auto; }
+.status-import-error td { color: #a02020; background: #fff3f3; }
+#status-import-dialog .after-sale-batch-bar { justify-content: flex-start; align-items: end; }
+#status-import-dialog .after-sale-batch-bar label { display: grid; flex: 1; gap: 6px; min-width: 280px; }
+#status-import-file { width: 100%; }

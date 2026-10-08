@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260919-field-warning" />
+    <link rel="stylesheet" href="./styles.css?v=20261008-status-import" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -133,7 +133,7 @@
         <section class="view" id="view-after-sales">
           <div class="panel list-toolbar">
             <div><h3>售後管理</h3><p>員工提交售後 → 門市現場簽收 → 工廠處理 → 完成派送。</p></div>
-            <button type="button" id="export-after-sales">導出篩選明細</button>
+            <div class="row-actions"><button type="button" id="open-after-status-import">導入更新狀態</button><button type="button" id="export-after-sales">導出篩選明細</button></div>
           </div>
           <div class="panel after-sale-filters">
             <label><span>員工 / 登記編號</span><input id="after-sale-filter-keyword" type="search" placeholder="員工編號、姓名或登記編號" /></label>
@@ -205,7 +205,13 @@
       </section>
     </main>
 
-    <dialog class="archive-dialog" id="order-progress-dialog"><div class="dialog-head"><h3>員工訂單執行進度</h3><button type="button" onclick="this.closest('dialog').close()">關閉</button></div><p>服裝確認、預約與量身由業務操作更新；完成量身後可依序推進工廠及交付階段。</p><div class="table-wrap" id="order-progress-content"></div></dialog>
+    <dialog class="archive-dialog" id="order-progress-dialog" aria-labelledby="order-progress-title">
+      <div class="dialog-head"><div><h3 id="order-progress-title">變更正向訂單進度</h3><p id="order-progress-subtitle"></p></div><button type="button" onclick="this.closest('dialog').close()">關閉</button></div>
+      <p>簽字確認服裝 → 預約量身 → 完成量身 → 已下單到工廠 → 工廠交付，待派送 → 已交付。</p>
+      <p class="dialog-tip">核實業務已完成後，按順序確認下一階段。簽字、預約與量身操作亦會自動更新進度；手動確認僅更新進度，不會新增簽名、預約或量體檔案。</p>
+      <div class="after-sale-batch-bar"><button type="button" id="open-forward-status-import">導入更新狀態</button><label>批量變更進度<select id="order-progress-batch-stage"></select></label><button type="button" id="apply-order-progress">更新已選員工</button><span>請勾選相同進度的員工；下單到工廠時需填寫預計交付日期。</span></div>
+      <div class="table-wrap" id="order-progress-content"></div>
+    </dialog>
     <div class="toast" id="toast" hidden></div>
     <dialog class="archive-dialog" id="archive-dialog">
       <div class="dialog-head"><div><h3 id="archive-title">員工量體檔案</h3><p id="archive-subtitle"></p></div><button class="secondary" type="button" data-close-archive>關閉</button></div>
@@ -423,9 +429,29 @@
       <div class="analysis-result-toolbar"><label><span>搜尋員工</span><input id="analysis-result-search" type="search" placeholder="員工編號或姓名" /></label><button class="secondary" type="button" id="export-analysis-results">導出分析結果</button></div>
       <div class="table-wrap"><table id="analysis-result-table"></table></div>
     </dialog>
+    <dialog id="status-import-dialog" aria-labelledby="status-import-title">
+      <div class="dialog-head"><div><h3 id="status-import-title">導入更新狀態</h3><p id="status-import-scope"></p></div><button type="button" class="secondary" id="status-import-cancel">取消</button></div>
+      <p>1. 下載含現有記錄的模板（退換流程使用目前篩選結果）。2. 填寫目標狀態，無需更新的行留空。3. 上傳並核對預覽，再確認導入。</p>
+      <p id="status-import-statuses"></p>
+      <p class="dialog-tip">僅支持順序進入下一階段；下單到工廠必填預計交付日期（YYYY-MM-DD）。同一記錄不可重複；有錯誤時整批不保存。支援簡繁體狀態。編號請使用文字格式以保留前導零。</p>
+      <div class="after-sale-batch-bar"><button type="button" id="status-import-template">下載填寫模板</button><label>CSV / TSV / XLSX（首張工作表，最多 10,000 行 / 10 MB）<input id="status-import-file" type="file" accept=".csv,.tsv,.xlsx"></label><button type="button" id="status-import-preview-button">校驗並預覽</button></div>
+      <p id="status-import-summary" role="status"></p>
+      <div class="table-wrap" id="status-import-preview"></div>
+      <div class="pagination" id="status-import-pages"></div>
+      <div class="dialog-actions"><button type="button" id="status-import-save" disabled>確認導入更新</button></div>
+    </dialog>
+    <dialog class="entity-dialog" id="factory-delivery-dialog" aria-labelledby="factory-delivery-title">
+      <form id="factory-delivery-form">
+        <div class="dialog-head"><div><h3 id="factory-delivery-title">下單到工廠</h3><p id="factory-delivery-context"></p></div><button class="secondary" type="button" id="cancel-factory-delivery">取消</button></div>
+        <div class="dialog-form-grid"><label>預計交付日期（必填）<input id="factory-delivery-date" type="date" required /></label></div>
+        <p class="dialog-tip">此日期將顯示在客戶端；批量下單的記錄使用同一日期。</p>
+        <div class="dialog-actions"><button type="submit">確認下單到工廠</button></div>
+      </form>
+    </dialog>
     <dialog id="catalog-dialog" class="catalog-dialog"></dialog>
-    <script src="../shared/workflow.js?v=20260916-multi-receipt"></script>
-    <script src="./app.js?v=20260919-field-warning"></script>
+    <script src="../shared/workflow.js?v=20261008-status-import"></script>
+    <script src="./app.js?v=20261008-status-import"></script>
+    <script src="./status-import.js?v=20261008-status-import"></script>
     <script src="./catalog.js?v=20260919-field-warning"></script>
   </body>
 </html>

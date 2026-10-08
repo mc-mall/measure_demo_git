@@ -146,6 +146,8 @@ function renderClientOrders() {
     <article class="client-order-card">
       <div><span>訂單 / 項目</span><strong>${escapeClientHtml(order.order_id)}</strong><p>${escapeClientHtml(order.company_name)}</p></div>
       ${renderWorkflow(MeasureWorkflow.forward, MeasureWorkflow.progress(store, employee || {}), "訂單執行進度")}
+      ${employee?.estimated_delivery_date ? `<p class="estimated-delivery">預計交付日期：<strong>${escapeClientHtml(employee.estimated_delivery_date)}</strong></p>` : ""}
+      ${(employee?.order_progress_history || []).length ? `<details class="order-progress-history"><summary>訂單進度更新記錄（${employee.order_progress_history.length}）</summary><ol>${[...employee.order_progress_history].reverse().map(item => `<li><strong>${escapeClientHtml(item.status)}</strong><span>${escapeClientHtml(item.changed_at)} · ${escapeClientHtml(item.operator || "管理後台")}</span>${item.estimated_delivery_date ? `<span>預計交付日期：${escapeClientHtml(item.estimated_delivery_date)}</span>` : ""}</li>`).join("")}</ol></details>` : ""}
       <div class="button-row">
         <button class="secondary-action" type="button" data-open-confirmation>服裝確認</button>
         <button class="primary-action" type="button" data-open-appointment="${escapeClientHtml(order.order_id)}">預約量身</button>
@@ -162,6 +164,7 @@ function renderClientOrders() {
       <span class="after-sale-list-meta">提交時間：${escapeClientHtml(record.created_at)}</span>
       <span class="after-sale-list-progress"><span>目前進度</span><span class="after-sale-status status-${afterSaleStatusClass(record.status)}">${escapeClientHtml(record.status)}</span><span class="after-sale-step-count">${record.status === "已關閉" ? "已結束" : `${completed} / ${MeasureWorkflow.after.length}`}</span></span>
       <span class="after-sale-mini-progress" aria-hidden="true">${MeasureWorkflow.after.map((_, index) => `<span class="${index < completed ? "done" : ""}"></span>`).join("")}</span>
+      ${record.estimated_delivery_date ? `<span class="after-sale-list-meta">預計交付日期：<strong>${escapeClientHtml(record.estimated_delivery_date)}</strong></span>` : ""}
       <span class="after-sale-list-link">查看申請詳情</span>
     </button>`;
   }).join("") : '<div class="empty-state"><strong>暫無申請記錄</strong><span>請從訂單提交退換服裝、數量與修改要求，再到門市退還。</span></div>';
@@ -178,6 +181,7 @@ function renderClientAfterSaleDetail() {
     <div class="record-card-head"><h2>${escapeClientHtml(record.id)}</h2><span class="after-sale-status status-${afterSaleStatusClass(record.status)}">${escapeClientHtml(record.status)}</span></div>
     <p>訂單號：${escapeClientHtml(record.order_id)}</p><p>提交時間：${escapeClientHtml(record.created_at)}</p>
     ${record.status === "已關閉" ? "<p>此售後申請已全部關閉。</p>" : renderWorkflow(MeasureWorkflow.after, Math.max(0, MeasureWorkflow.after.indexOf(record.status) + 1), "完整售後進度")}
+    ${record.estimated_delivery_date ? `<p class="estimated-delivery">預計交付日期：<strong>${escapeClientHtml(record.estimated_delivery_date)}</strong></p>` : ""}
     ${record.status === "提交售後" ? '<p class="after-sale-detail-tip">請攜帶以下服裝到門市退還，等待現場簽收。</p>' : ""}
     <section class="after-sale-detail-section"><h3>退換明細</h3><div class="record-item-list">${(record.items || []).map(item => `<div><strong>${escapeClientHtml(item.garment_name)}${item.closed ? " · 已關閉" : ""}</strong>${item.closed ? `<span>關閉原因：${escapeClientHtml(item.closed.reason)}</span>` : ""}<div class="return-quantity-pair"><span>申請數量<strong>${escapeClientHtml(item.quantity || 0)} 件</strong></span><span>簽收數量<strong>${escapeClientHtml(MeasureWorkflow.receivedLabel(record, item))}</strong></span></div><span class="after-sale-long-text">修改要求：${escapeClientHtml(item.demand || "-")}</span></div>`).join("")}</div></section>
     <section class="after-sale-detail-section"><h3>申請備註</h3><p class="after-sale-long-text">${escapeClientHtml(record.remark || "無補充備註")}</p></section>
@@ -991,11 +995,18 @@ document.getElementById("client-after-sale-form").addEventListener("submit", eve
   renderClientOrders();
   showAppointmentModal("售後申請已提交", "請將所選服裝帶到門市，門市同事將現場核對並簽收。");
 });
-window.addEventListener("storage", event => {
-  if (event.key !== sharedAdminStoreKey || !currentEmployee) return;
+function syncClientOrderProgress() {
+  if (!currentEmployee) return;
   const updated = sharedEmployee(currentEmployee.orderId, currentEmployee.employeeId);
   if (updated) currentEmployee = updated;
   renderClientOrders();
   if (document.getElementById("view-appointments").classList.contains("is-active")) renderClientAppointments();
   if (document.getElementById("view-after-sale-detail").classList.contains("is-active")) renderClientAfterSaleDetail();
+}
+window.addEventListener("storage", event => {
+  if (event.key === sharedAdminStoreKey) syncClientOrderProgress();
+});
+window.addEventListener("focus", syncClientOrderProgress);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") syncClientOrderProgress();
 });
