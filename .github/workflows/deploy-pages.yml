@@ -36,6 +36,7 @@ jobs:
           cp measure_admin/index.html measure_admin/app.js measure_admin/catalog.js measure_admin/status-import.js measure_admin/styles.css _site/measure_admin/
           cp tailor/index.html tailor/app.js tailor/products.js tailor/styles.css _site/tailor/
           cp client/index.html client/app.js client/styles.css _site/client/
+          cp -r client/assets _site/client/assets
           touch _site/.nojekyll
 
       - name: Upload artifact

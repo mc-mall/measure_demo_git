@@ -14,6 +14,15 @@ let selectedAfterSaleId = "";
 let afterSaleListScrollY = 0;
 const appointmentSelectorState = { address: "", date: "", slotId: "", calendarMonth: "", calendarOpen: false };
 const sharedAdminStoreKey = "mc-measure-admin-prototype-state";
+const styleGallery = {
+  "full-outfit": { name: "整套制服", images: ["./assets/model-full-outfit.svg", "./assets/model-full-outfit-detail.svg", "./assets/model-full-outfit-back.svg"], captions: ["正面全套上身效果", "面料與搭配細節", "背面版型效果"] },
+  shirt: { name: "襯衫", images: ["./assets/model-shirt.svg", "./assets/model-shirt.svg#detail"] , captions: ["正面上身效果", "領口與門襟細節"] },
+  jacket: { name: "西裝外套", images: ["./assets/model-jacket.svg", "./assets/model-jacket.svg#detail"], captions: ["正面上身效果", "修身肩線細節"] },
+  trousers: { name: "西褲", images: ["./assets/model-trousers.svg", "./assets/model-trousers.svg#detail"], captions: ["正面穿着效果", "褲腰與褲腳細節"] },
+  skirt: { name: "半裙", images: ["./assets/model-trousers.svg", "./assets/model-trousers.svg#detail"], captions: ["搭配示意效果", "面料與腰頭細節"] },
+  vest: { name: "馬甲", images: ["./assets/model-jacket.svg", "./assets/model-jacket.svg#detail"], captions: ["搭配示意效果", "前襟細節"] },
+};
+let styleModalState = { key: "", index: 0 };
 
 const fallbackOrders = [{
   order_id: "ORDER001",
@@ -257,6 +266,34 @@ function showAppointmentModal(title, message, tone = "success", buttonLabel = "�
 
 function closeAppointmentModal() {
   document.getElementById("appointment-modal").hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+function renderStyleGallery() {
+  const gallery = styleGallery[styleModalState.key];
+  if (!gallery) return;
+  const index = styleModalState.index;
+  document.getElementById("style-modal-title").textContent = `${gallery.name}樣式`;
+  const image = document.getElementById("style-modal-image");
+  image.src = gallery.images[index];
+  image.alt = `${gallery.name}${gallery.captions[index]}`;
+  document.getElementById("style-modal-caption").textContent = gallery.captions[index];
+  document.getElementById("style-modal-counter").textContent = `${index + 1} / ${gallery.images.length}`;
+  document.getElementById("style-gallery-dots").innerHTML = gallery.images.map((_, dotIndex) => `<button type="button" class="style-gallery-dot ${dotIndex === index ? "is-active" : ""}" data-style-index="${dotIndex}" aria-label="第 ${dotIndex + 1} 張圖片"></button>`).join("");
+}
+
+function openStyleModal(key) {
+  if (!styleGallery[key]) return;
+  styleModalState = { key, index: 0 };
+  renderStyleGallery();
+  const modal = document.getElementById("style-modal");
+  modal.hidden = false;
+  document.body.classList.add("modal-open");
+  modal.querySelector(".style-modal-close").focus();
+}
+
+function closeStyleModal() {
+  document.getElementById("style-modal").hidden = true;
   document.body.classList.remove("modal-open");
 }
 
@@ -715,8 +752,38 @@ document.getElementById("appointment-modal").addEventListener("click", (event) =
   if (event.target.closest("[data-close-appointment-modal]")) closeAppointmentModal();
 });
 
+document.getElementById("style-modal").addEventListener("click", (event) => {
+  if (event.target.closest("[data-close-style-modal]")) {
+    closeStyleModal();
+    return;
+  }
+  const gallery = styleGallery[styleModalState.key];
+  if (!gallery) return;
+  if (event.target.closest("[data-style-prev]")) styleModalState.index = (styleModalState.index - 1 + gallery.images.length) % gallery.images.length;
+  if (event.target.closest("[data-style-next]")) styleModalState.index = (styleModalState.index + 1) % gallery.images.length;
+  const dot = event.target.closest("[data-style-index]");
+  if (dot) styleModalState.index = Number(dot.dataset.styleIndex);
+  renderStyleGallery();
+});
+
+document.addEventListener("click", (event) => {
+  const preview = event.target.closest("[data-style-preview]");
+  if (!preview) return;
+  event.preventDefault();
+  event.stopPropagation();
+  openStyleModal(preview.dataset.stylePreview);
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !document.getElementById("appointment-modal").hidden) closeAppointmentModal();
+  const styleModal = document.getElementById("style-modal");
+  if (!styleModal.hidden) {
+    if (event.key === "Escape") closeStyleModal();
+    const gallery = styleGallery[styleModalState.key];
+    if (event.key === "ArrowLeft") styleModalState.index = (styleModalState.index - 1 + gallery.images.length) % gallery.images.length;
+    if (event.key === "ArrowRight") styleModalState.index = (styleModalState.index + 1) % gallery.images.length;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") renderStyleGallery();
+  }
   if (event.key === "Escape" && appointmentSelectorState.calendarOpen) {
     appointmentSelectorState.calendarOpen = false;
     renderClientAppointments();

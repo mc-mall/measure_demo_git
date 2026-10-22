@@ -921,3 +921,34 @@ body.calendar-open { overflow: hidden; }
 .order-progress-history ol { padding-left: 22px; margin-bottom: 0; }
 .order-progress-history li { padding: 8px 0; }
 .order-progress-history li span { display: block; margin-top: 4px; color: #64748b; font-size: 13px; }
+
+.style-preview-button {
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  padding: 0 0 2px;
+  background: transparent;
+  color: #e5484d;
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.style-summary-preview { margin-left: auto; }
+.sku-summary div { align-items: center; }
+.style-modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 18px; }
+.style-modal[hidden] { display: none; }
+.style-modal-backdrop { position: absolute; inset: 0; background: rgba(20, 32, 46, .56); backdrop-filter: blur(3px); }
+.style-modal-card { position: relative; width: min(100%, 430px); max-height: min(92vh, 720px); overflow: auto; border-radius: 16px; padding: 18px; background: #fff; box-shadow: 0 24px 70px rgba(20,32,46,.3); }
+.style-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.style-modal-head h2 { margin: 4px 0 0; font-size: 21px; }
+.style-modal-close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: #eef3f7; color: #526174; font-size: 25px; line-height: 1; }
+.style-gallery { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center; gap: 8px; margin-top: 12px; }
+.style-gallery img { width: 100%; aspect-ratio: 640 / 760; object-fit: cover; border-radius: 12px; background: #eef3f7; }
+.style-gallery-arrow { width: 34px; height: 48px; border: 1px solid #c7d5e2; border-radius: 9px; background: #f4f8fb; color: var(--blue-dark); font-size: 30px; line-height: 1; }
+.style-gallery-arrow:hover { background: #e7f1f8; }
+.style-gallery-caption { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; }
+.style-gallery-caption strong { color: var(--ink); font-size: 14px; }
+.style-gallery-caption span { color: var(--muted); font-size: 13px; }
+.style-gallery-dots { display: flex; justify-content: center; gap: 7px; margin-top: 12px; }
+.style-gallery-dot { width: 8px; height: 8px; border: 0; border-radius: 50%; padding: 0; background: #c8d3de; }
+.style-gallery-dot.is-active { width: 22px; border-radius: 999px; background: var(--blue); }
+@media (max-width: 420px) { .style-modal { padding: 10px; } .style-modal-card { padding: 14px; } }

@@ -164,7 +164,7 @@
 
           <section class="flow-page" data-flow-page="1">
             <div class="sku-summary">
-              <div><span>已選總數</span><strong id="sku-total">0 / 4</strong></div>
+              <div><span>已選總數</span><strong id="sku-total">0 / 4</strong><button class="style-preview-button style-summary-preview" type="button" data-style-preview="full-outfit">查看樣式</button></div>
               <p>所有 SKU 數量總和必須等於 4 件。</p>
             </div>
 
@@ -336,6 +336,16 @@
         <strong id="appointment-modal-title">預約登記成功</strong>
         <p id="appointment-modal-message">門店將按此時段安排店員和裁縫師。</p>
         <button class="primary-action" type="button" data-close-appointment-modal>知道了</button>
+      </div>
+    </div>
+
+    <div class="style-modal" id="style-modal" role="dialog" aria-modal="true" aria-labelledby="style-modal-title" hidden>
+      <div class="style-modal-backdrop" data-close-style-modal></div>
+      <div class="style-modal-card">
+        <div class="style-modal-head"><div><p class="section-kicker">Garment Preview</p><h2 id="style-modal-title">服裝樣式</h2></div><button class="style-modal-close" type="button" data-close-style-modal aria-label="關閉樣式預覽">×</button></div>
+        <div class="style-gallery"><button class="style-gallery-arrow" type="button" data-style-prev aria-label="上一張">‹</button><img id="style-modal-image" alt="模特上身效果" /><button class="style-gallery-arrow" type="button" data-style-next aria-label="下一張">›</button></div>
+        <div class="style-gallery-caption"><strong id="style-modal-caption"></strong><span id="style-modal-counter"></span></div>
+        <div class="style-gallery-dots" id="style-gallery-dots" aria-label="樣式圖片頁碼"></div>
       </div>
     </div>
 
