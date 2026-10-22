@@ -14,10 +14,12 @@ function seedStore() {
   return {
     afterSaleStatusVersion: 2,
     tailors: [{ id: "T001", name: "張師傅", username: "tailor-demo", has_password: true }],
+    departments: ["深圳總部", "澳門分部", "香港分部"],
     orders: [{
       id: "O001",
       order_id: "ORDER001",
       company_name: "澳設集團 2026 制服",
+      registration_token: "REG-ORDER001-7F4A",
       garments: [
         { id: "G001", gender: "男", name: "襯衫", default_quantity: 2, quantity_editable: true },
         { id: "G002", gender: "男", name: "西褲", default_quantity: 2, quantity_editable: true },
@@ -80,6 +82,8 @@ function seedStore() {
 
 
 function normalize(store) {
+  store.departments = Array.from(new Set((Array.isArray(store.departments) ? store.departments : ["深圳總部", "澳門分部", "香港分部"]).map(item => String(item || "").trim()).filter(Boolean)));
+  store.orders = (store.orders || []).map(order => ({ ...order, registration_token: order.registration_token || registrationToken(order.order_id) }));
   if (store.workflowVersion === 1) return store;
   const oldVersion = store.afterSaleStatusVersion;
   const map = { "已登記": after[0], "已處理": after[1], "已發回": after[4], "已完成": oldVersion === 2 ? after[4] : after[1] };
@@ -91,6 +95,11 @@ function normalize(store) {
   store.afterSaleStatusVersion = 2;
   store.workflowVersion = 1;
   return store;
+}
+function registrationToken(orderId) {
+  let hash = 2166136261;
+  for (const char of String(orderId || "")) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return `REG-${String(orderId || "ORDER").replace(/[^A-Z0-9]+/gi, "-").toUpperCase()}-${(hash >>> 0).toString(16).toUpperCase().slice(-8)}`;
 }
 function read() {
   const raw = localStorage.getItem(key);
@@ -131,6 +140,6 @@ function receivedLabel(record, item) {
   const quantity = receivedQuantity(record, item);
   return quantity !== null ? `${quantity} 件` : record.status === after[0] && !record.receipt ? "待簽收" : "未記錄";
 }
-return {validDeliveryDate, key, forward, after, read, normalize, progress, garments, seedStore, receivedQuantity, receivedLabel, receiptBatches, remainingQuantity, readyForFactory};
+return {validDeliveryDate, key, forward, after, read, normalize, progress, garments, seedStore, registrationToken, receivedQuantity, receivedLabel, receiptBatches, remainingQuantity, readyForFactory};
 })();
 MeasureWorkflow.read();

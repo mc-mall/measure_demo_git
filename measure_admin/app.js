@@ -225,6 +225,12 @@ function renderOrderSelect() {
   selects.forEach((select) => {
     select.innerHTML = options;
   });
+  const departmentSelect = document.getElementById("employee-department-select");
+  if (departmentSelect) {
+    const current = departmentSelect.value;
+    departmentSelect.innerHTML = (store.departments || []).map((department) => `<option value="${escapeHtml(department)}">${escapeHtml(department)}</option>`).join("");
+    if ((store.departments || []).includes(current)) departmentSelect.value = current;
+  }
   document.querySelectorAll(".export-order-select").forEach((exportSelect) => {
     const current = exportSelect.value;
     exportSelect.innerHTML = `<option value="">全部訂單</option>${options}`;
@@ -261,10 +267,21 @@ function renderOrders() {
     <tr>
       <td>${escapeHtml(item.order_id)}</td><td>${escapeHtml(item.company_name)}</td>
       <td>${garmentSummary(item, "男")}</td><td>${garmentSummary(item, "女")}</td><td>${quantityRuleSummary(item)}</td>
-      <td><div class="row-actions"><button type="button" data-order-progress="${escapeHtml(item.order_id)}">變更訂單進度</button><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button></div></td>
+      <td><div class="row-actions"><button type="button" data-order-progress="${escapeHtml(item.order_id)}">變更訂單進度</button><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-registration-qr="${escapeHtml(item.order_id)}">員工註冊二維碼</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button></div></td>
     </tr>
   `);
   renderTable("order-table", ["訂單號", "公司名", "男士服裝配置", "女士服裝配置", "組合數量限制", "操作"], rows);
+}
+
+function openRegistrationQr(orderId) {
+  const order = loadStore().orders.find((item) => item.order_id === orderId);
+  if (!order) return;
+  const clientUrl = new URL("../client/index.html", window.location.href);
+  clientUrl.search = new URLSearchParams({ register: "1", order: order.order_id, token: order.registration_token || MeasureWorkflow.registrationToken(order.order_id) }).toString();
+  const qrUrl = `https://quickchart.io/qr?size=280&text=${encodeURIComponent(clientUrl.href)}`;
+  const popup = window.open("", "employee-registration-qr", "width=420,height=520");
+  if (popup) popup.document.write(`<title>${escapeHtml(order.order_id)} 員工註冊二維碼</title><main style="font:16px sans-serif;text-align:center;padding:24px"><h2>${escapeHtml(order.order_id)} 員工註冊</h2><img src="${qrUrl}" alt="員工註冊二維碼" width="280" height="280"><p style="word-break:break-all">${escapeHtml(clientUrl.href)}</p></main>`);
+  else window.prompt("請複製員工註冊連結", clientUrl.href);
 }
 
 function employeeIsVerified(employee) {
@@ -749,6 +766,8 @@ function renderAll() {
   renderOrderSelect();
   renderMetrics();
   renderEmployees();
+  const departmentTable = document.getElementById("department-table");
+  if (departmentTable) renderTable("department-table", ["部門", "操作"], (loadStore().departments || []).map((department) => `<tr><td>${escapeHtml(department)}</td><td><button class="danger" type="button" data-delete-department="${escapeHtml(department)}">刪除</button></td></tr>`));
   renderRecords("男");
   renderRecords("女");
   if (isOwner()) {
@@ -1982,6 +2001,17 @@ document.body.addEventListener("click", (event) => {
     renderQuantityRules();
   }
   if (button.dataset.openSignatures) openSignatureDetails(button.dataset.openSignatures);
+  if (button.dataset.registrationQr) openRegistrationQr(button.dataset.registrationQr);
+  if (button.id === "add-department") {
+    const department = window.prompt("請輸入部門名稱", "");
+    const store = loadStore();
+    if (department?.trim() && !(store.departments || []).includes(department.trim())) { store.departments ||= []; store.departments.push(department.trim()); saveStore(store); renderAll(); showToast("部門已新增"); }
+  }
+  if (button.dataset.deleteDepartment) {
+    const store = loadStore();
+    if ((store.departments || []).length <= 1) showToast("至少保留一個部門");
+    else if (window.confirm(`確定刪除部門「${button.dataset.deleteDepartment}」？`)) { store.departments = store.departments.filter(item => item !== button.dataset.deleteDepartment); saveStore(store); renderAll(); showToast("部門已刪除"); }
+  }
   if (button.dataset.afterSaleDetail) openAfterSaleDetail(button.dataset.afterSaleDetail);
   if (button.dataset.afterSalePage) {
     afterSalePagination.page += button.dataset.afterSalePage === "next" ? 1 : -1;

@@ -47,6 +47,7 @@
           <button class="nav-child" type="button" data-view="patterns" data-owner-only>衣服版型管理</button>
           <button class="nav-child" type="button" data-view="products" data-owner-only>產品配置</button>
           <button class="nav-child" type="button" data-view="subaccounts" data-owner-only>子賬號管理</button>
+          <button class="nav-child" type="button" data-view="departments" data-owner-only>部門管理</button>
         </nav>
         <button class="ghost" type="button" id="logout">退出登入</button>
       </aside>
@@ -202,6 +203,10 @@
           <div class="panel list-toolbar"><div><h3>子賬號列表</h3><p>配置運營人員的登入信息、功能權限及賬號狀態。</p></div><button type="button" id="open-subaccount-editor">新增子賬號</button></div>
           <div class="panel table-wrap"><table id="subaccount-table"></table></div>
         </section>
+        <section class="view" id="view-departments">
+          <div class="panel list-toolbar"><div><h3>部門管理</h3><p>維護員工自主註冊時可選的部門。</p></div><button type="button" id="add-department">新增部門</button></div>
+          <div class="panel table-wrap"><table id="department-table"></table></div>
+        </section>
       </section>
     </main>
 
@@ -291,7 +296,7 @@
           <label><span>性別</span><select name="gender" required><option>男</option><option>女</option></select></label>
           <label><span>身高 cm</span><input name="height_cm" type="number" step="0.1" min="0" /></label>
           <label><span>體重 kg</span><input name="weight_kg" type="number" step="0.1" min="0" /></label>
-          <label><span>單位名字</span><input name="unit_name" required /></label>
+          <label><span>部門</span><select name="unit_name" id="employee-department-select" required></select></label>
           <label><span>歸屬訂單 / 公司</span><select name="order_id" id="employee-order-select" required></select></label>
         </div>
         <div class="dialog-actions"><button type="submit">保存員工</button></div>

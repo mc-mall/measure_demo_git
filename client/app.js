@@ -87,13 +87,42 @@ function sharedEmployee(orderId, employeeId) {
     orderId: record.order_id,
     employeeId: record.employee_id,
     name: record.name,
-    gender: record.gender,
+    gender: record.gender || "未指定",
     department: record.unit_name || "-",
     phone: record.phone || "",
     email: record.email || "",
     maskedPhone: record.maskedPhone || maskPhone(record.phone),
     signatureConfirmation: record.verification_status === "verified" ? record.signature_confirmation : null,
   };
+}
+
+function registrationOrder(orderId) {
+  return getClientOrders().find((order) => order.order_id === orderId) || null;
+}
+
+function registrationUrl(order) {
+  const url = new URL("../client/index.html", window.location.href);
+  url.search = new URLSearchParams({ register: "1", order: order.order_id, token: order.registration_token || MeasureWorkflow.registrationToken(order.order_id) }).toString();
+  return url.href;
+}
+
+function renderRegistrationOptions(selectedOrderId = "") {
+  const orders = getClientOrders();
+  const orderSelect = document.getElementById("registration-order-select");
+  const departmentSelect = document.getElementById("registration-department-select");
+  if (!orderSelect || !departmentSelect) return;
+  orderSelect.innerHTML = orders.map((order) => `<option value="${escapeClientHtml(order.order_id)}">${escapeClientHtml(order.order_id)} - ${escapeClientHtml(order.company_name)}</option>`).join("");
+  if (selectedOrderId && orders.some((order) => order.order_id === selectedOrderId)) orderSelect.value = selectedOrderId;
+  const departments = loadSharedAdminStore()?.departments || ["深圳總部", "澳門分部", "香港分部"];
+  departmentSelect.innerHTML = departments.map((department) => `<option value="${escapeClientHtml(department)}">${escapeClientHtml(department)}</option>`).join("");
+}
+
+function openRegistration(orderId = "") {
+  renderRegistrationOptions(orderId);
+  const order = registrationOrder(orderId || document.getElementById("registration-order-select")?.value);
+  const hint = document.getElementById("register-order-hint");
+  hint.textContent = order ? `正在註冊：${order.order_id} / ${order.company_name}` : "請使用後台生成的訂單二維碼進入註冊。";
+  switchView("register");
 }
 
 function renderSharedOrderOptions() {
@@ -642,6 +671,7 @@ function validateSku() {
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     if (tab.dataset.view === "appointments") openAppointmentView();
+    else if (tab.dataset.view === "register") openRegistration();
     else switchView(tab.dataset.view);
   });
 });
@@ -679,6 +709,50 @@ document.getElementById("login-form").addEventListener("submit", (event) => {
   }
   showNotice(result, "success", "登入成功", "請選擇訂單後繼續服裝確認或前往量體預約。");
   window.setTimeout(() => switchView("orders"), 350);
+});
+
+document.getElementById("registration-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.currentTarget));
+  const result = document.getElementById("registration-result");
+  const store = loadSharedAdminStore() || MeasureWorkflow.seedStore();
+  const orderId = String(data.registration_order_id || "").trim();
+  const employeeId = String(data.registration_employee_id || "").trim();
+  const name = String(data.registration_name || "").trim();
+  const gender = String(data.registration_gender || "").trim();
+  const department = String(data.registration_department || "").trim();
+  const height = Number(data.registration_height_cm);
+  const weight = Number(data.registration_weight_kg);
+  const phone = String(data.registration_phone || "").trim();
+  const email = String(data.registration_email || "").trim();
+  const order = store.orders?.find((item) => item.order_id === orderId);
+  const departments = store.departments || [];
+  let error = "";
+  if (!order || (order.registration_token && order.registration_token !== new URLSearchParams(window.location.search).get("token") && new URLSearchParams(window.location.search).get("register") === "1")) error = "註冊連結無效，請重新掃描訂單二維碼。";
+  else if (!employeeId || !name) error = "請填寫員工編號和姓名。";
+  else if (!["男", "女"].includes(gender)) error = "請選擇性別。";
+  else if (!departments.includes(department)) error = "請選擇後台已配置的部門。";
+  else if (!Number.isInteger(height) || height < 50 || height > 250) error = "身高需為 50-250 cm 的整數。";
+  else if (!Number.isFinite(weight) || weight < 20 || weight > 300) error = "體重需為 20-300 kg。";
+  else if (!/^\+(86\d{11}|852[5-9]\d{7}|8536\d{7})$/.test(phone)) error = "聯絡電話需使用 +86、+852 或 +853，且格式正確。";
+  else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) error = "請輸入正確的電子郵箱格式。";
+  else if ((store.employees || []).some((item) => item.order_id === orderId && String(item.employee_id).toLowerCase() === employeeId.toLowerCase())) error = "此訂單的員工編號已註冊。";
+  if (error) {
+    showNotice(result, "error", "註冊未完成", error);
+    return;
+  }
+  store.employees ||= [];
+  store.employees.push({
+    id: clientUid("E"), employee_id: employeeId, name, gender, height_cm: String(height), weight_kg: String(weight), unit_name: department,
+    phone, email, order_id: orderId, verification_status: "unverified", signature_confirmation: null, registered_at: nowClientText(), registration_source: "employee_qr",
+  });
+  localStorage.setItem(sharedAdminStoreKey, JSON.stringify(MeasureWorkflow.normalize(store)));
+  renderSharedOrderOptions();
+  event.currentTarget.reset();
+  document.querySelector('[name="order_id"]').value = orderId;
+  document.querySelector('[name="employee_id"]').value = employeeId;
+  showNotice(document.getElementById("login-result"), "success", "註冊成功", "資料已保存，請輸入任意非空密碼登入。初始密碼可使用員工編號。 ");
+  switchView("login");
 });
 
 document.getElementById("client-order-cards").addEventListener("click", (event) => {
@@ -951,6 +1025,14 @@ document.getElementById("check-employee").addEventListener("click", () => {
 });
 
 renderSharedOrderOptions();
+renderRegistrationOptions();
+const registrationQuery = new URLSearchParams(window.location.search);
+if (registrationQuery.get("register") === "1") {
+  const orderId = registrationQuery.get("order") || "";
+  const order = registrationOrder(orderId);
+  if (order && (!registrationQuery.get("token") || registrationQuery.get("token") === (order.registration_token || MeasureWorkflow.registrationToken(order.order_id)))) openRegistration(orderId);
+  else openRegistration();
+}
 
 document.getElementById("send-code").addEventListener("click", (event) => {
   event.currentTarget.textContent = "驗證碼已發送";
