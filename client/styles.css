@@ -379,6 +379,12 @@ button {
   gap: 12px;
 }
 
+.register-inline-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 .client-profile-card,
 .client-order-card,
 .after-sale-record-card {
@@ -842,6 +848,7 @@ body.calendar-open { overflow: hidden; }
 
   .readonly-grid,
   .info-measure-fields,
+  .register-inline-fields,
   .client-profile-card {
     grid-template-columns: 1fr;
   }

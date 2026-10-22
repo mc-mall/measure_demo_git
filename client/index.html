@@ -31,7 +31,7 @@
         <div class="section-head">
           <p class="section-kicker">Login</p>
           <h1 id="login-title">員工登入</h1>
-          <p>賬號由後台導入生成，不支持員工自主註冊。</p>
+          <p>可使用訂單二維碼自主註冊，完成後返回此頁登入。</p>
         </div>
 
         <form class="form" id="login-form">
@@ -59,9 +59,35 @@
           </div>
 
           <button class="primary-action" type="submit">登入並查看訂單</button>
+          <button class="link-button register-entry" type="button" data-jump="register">新員工註冊</button>
         </form>
 
         <div class="notice" id="login-result" hidden></div>
+      </section>
+
+      <section class="view" id="view-register" aria-labelledby="register-title">
+        <div class="section-head">
+          <p class="section-kicker">Employee Registration</p>
+          <h1 id="register-title">員工自主註冊</h1>
+          <p id="register-order-hint">請使用後台生成的訂單二維碼進入註冊。</p>
+        </div>
+        <form class="form" id="registration-form">
+          <label class="field"><span>訂單 / 項目</span><select name="registration_order_id" id="registration-order-select" required></select></label>
+          <label class="field"><span>員工編號</span><input name="registration_employee_id" autocomplete="username" required /></label>
+          <div class="register-inline-fields">
+            <label class="field"><span>姓名</span><input name="registration_name" required /></label>
+            <label class="field"><span>性別</span><select name="registration_gender" required><option value="" selected disabled>請選擇性別</option><option value="男">男</option><option value="女">女</option></select></label>
+          </div>
+          <label class="field"><span>部門</span><select name="registration_department" id="registration-department-select" required></select></label>
+          <div class="info-measure-fields">
+            <label class="field"><span>身高（cm）</span><input name="registration_height_cm" type="number" min="50" max="250" step="1" required /></label>
+            <label class="field"><span>體重（kg）</span><input name="registration_weight_kg" type="number" min="20" max="300" step="0.1" required /></label>
+          </div>
+          <label class="field"><span>聯絡電話</span><input name="registration_phone" type="tel" inputmode="tel" placeholder="+853 / +86 / +852" required /></label>
+          <label class="field"><span>電子郵箱（選填）</span><input name="registration_email" type="email" /></label>
+          <button class="primary-action" type="submit">提交註冊</button>
+        </form>
+        <div class="notice" id="registration-result" hidden></div>
       </section>
 
       <section class="view" id="view-appointments" aria-labelledby="appointments-title">
