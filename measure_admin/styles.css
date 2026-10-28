@@ -359,6 +359,9 @@ button {
 .alteration-detail-dialog h4 { margin: 0 0 8px; }
 .alteration-detail-dialog code { display: inline-block; padding: 3px 5px; border-radius: 4px; background: #f1f5f9; font-size: 12px; }
 .alteration-task-dialog { width: min(820px, calc(100vw - 32px)); overflow-y: auto; }
+.alteration-assign-dialog { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; }
+.alteration-assign-fields { margin-bottom: 4px; }
+.alteration-assign-dialog table { min-width: 680px; }
 .alteration-fee-check { display: flex; align-items: center; gap: 9px; margin-top: 16px; }
 .alteration-demand-field { margin-top: 14px; }
 .signature-detail-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; }

@@ -134,7 +134,7 @@ function normalize(store) {
     handovers: Array.isArray(task.handovers) ? task.handovers : [],
     anomalies: Array.isArray(task.anomalies) ? task.anomalies : [],
     history: Array.isArray(task.history) ? task.history : [],
-    type: task.type || "普通改衣",
+    type: task.type === "员工中止后重新发起" ? "普通改衣" : (task.type || "普通改衣"),
     status: task.status || "門市已收衣",
     location: task.location || task.store_name || "未記錄",
   }));

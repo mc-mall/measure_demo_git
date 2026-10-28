@@ -13,6 +13,7 @@ const employeePagination = { page: 1, pageSize: 15 };
 const afterSalePagination = { page: 1, pageSize: 15 };
 const alterationPagination = { page: 1, pageSize: 15 };
 const alterationSelection = new Set();
+const alterationAssignmentState = { taskIds: new Set(), currentTaskId: "" };
 const orderEditorState = { step: 1, garments: [], quantityRules: [] };
 const signatureDetailState = { orderId: "", page: 1, pageSize: 15 };
 const appointmentSelection = new Set();
@@ -859,16 +860,94 @@ function addAlterationHandover(task, type, from, to, remark = "") {
   task.handovers.push({ id: uid("HOV"), type, from, to, operator: currentUser.username, operator_id: currentUser.id, handover_at: nowText(), location: task.location, expected_quantity: quantities.expected, actual_quantity: quantities.expected, barcodes: (task.items || []).flatMap(item => Array(Number(item.quantity) || 0).fill(item.barcode)), remark });
 }
 
+function renderAlterationAssignmentScans() {
+  const store = loadStore();
+  const tasks = [...alterationAssignmentState.taskIds].map(taskId => (store.alterationTasks || []).find(task => task.id === taskId)).filter(Boolean);
+  renderTable("alteration-assignment-scan-table", ["任务编号", "条码", "员工 / 服装", "当前状态", "操作"], tasks.map(task => {
+    const item = task.items?.[0] || {};
+    return `<tr><td>${escapeHtml(task.id)}</td><td><code>${escapeHtml(item.barcode || "")}</code></td><td>${escapeHtml(task.employee_id)} · ${escapeHtml(task.employee_name)}<small class="table-subtext">${escapeHtml(item.garment_name || "")}</small></td><td>${escapeHtml(task.status)}</td><td><button class="secondary" type="button" data-remove-alteration-scan="${escapeHtml(task.id)}">移除</button></td></tr>`;
+  }), "请扫描任务条码");
+}
+
+function openAlterationAssignment(taskId = "") {
+  if (!isOwner() && !hasPermission("alteration_process")) return;
+  const store = loadStore();
+  alterationAssignmentState.taskIds = new Set();
+  alterationAssignmentState.currentTaskId = taskId;
+  const task = (store.alterationTasks || []).find(item => item.id === taskId);
+  if (task?.items?.[0]?.barcode && ["門市已收衣", "待分配"].includes(task.status)) alterationAssignmentState.taskIds.add(task.id);
+  const select = document.getElementById("alteration-assign-tailor");
+  select.innerHTML = (store.tailors || []).map(tailor => `<option value="${escapeHtml(tailor.id)}">${escapeHtml(tailor.name)} · ${escapeHtml(tailor.username || "")}</option>`).join("");
+  document.getElementById("alteration-assign-error").hidden = true;
+  renderAlterationAssignmentScans();
+  document.getElementById("alteration-assign-dialog").showModal();
+  document.getElementById("alteration-barcode-scan").focus();
+}
+
+function addAlterationBarcodeScan(value) {
+  const barcode = String(value || "").trim();
+  if (!barcode) return;
+  const error = document.getElementById("alteration-assign-error");
+  const store = loadStore();
+  const match = (store.alterationTasks || []).find(task => task.items?.some(item => item.barcode === barcode));
+  if (!match) {
+    error.textContent = `未找到条码 ${barcode} 对应的改衣任务。`;
+    error.hidden = false;
+  } else if (!["門市已收衣", "待分配"].includes(match.status)) {
+    error.textContent = `任务 ${match.id} 当前为“${match.status}”，不能再次分配。`;
+    error.hidden = false;
+  } else if (alterationAssignmentState.taskIds.has(match.id)) {
+    error.textContent = `任务 ${match.id} 已在待分配清单中，未重复加入。`;
+    error.hidden = false;
+  } else {
+    alterationAssignmentState.taskIds.add(match.id);
+    error.hidden = true;
+    renderAlterationAssignmentScans();
+  }
+  document.getElementById("alteration-barcode-scan").value = "";
+  document.getElementById("alteration-barcode-scan").focus();
+}
+
+function confirmAlterationAssignment(form) {
+  const tailorId = form.elements.tailor_id.value;
+  const store = loadStore();
+  const tailor = (store.tailors || []).find(item => item.id === tailorId);
+  const taskIds = [...alterationAssignmentState.taskIds];
+  const error = document.getElementById("alteration-assign-error");
+  if (!tailor || !taskIds.length) {
+    error.textContent = "请先选择师傅并扫描至少一个任务条码。";
+    error.hidden = false;
+    return;
+  }
+  const selected = (store.alterationTasks || []).filter(task => taskIds.includes(task.id));
+  if (selected.length !== taskIds.length || selected.some(task => !["門市已收衣", "待分配"].includes(task.status))) {
+    error.textContent = "待分配清单中有任务状态已变化，请重新扫描。";
+    error.hidden = false;
+    return;
+  }
+  selected.forEach(task => {
+    task.tailor_org = task.tailor_org || "自雇团队";
+    task.tailor_name = tailor.name;
+    task.status = "已分配待師傅收貨";
+    task.location = task.store_name || "門市";
+    (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; });
+    recordAlterationHistory(task, `分配師傅：${task.tailor_name}`);
+  });
+  saveStore(store);
+  const currentTaskId = alterationAssignmentState.currentTaskId;
+  alterationAssignmentState.taskIds = new Set();
+  alterationAssignmentState.currentTaskId = "";
+  document.getElementById("alteration-assign-dialog").close();
+  renderAll();
+  if (currentTaskId) openAlterationDetail(currentTaskId);
+  showToast(`已将 ${selected.length} 个单件任务分配给 ${tailor.name}。`);
+}
+
 function processAlteration(taskId, action, anomalyId = "") {
   const store = loadStore();
   const task = (store.alterationTasks || []).find(item => item.id === taskId);
   if (!task) return;
-  if (action === "assign") {
-    const tailor = prompt("請輸入師傅姓名（可同時填寫加工組織：組織 / 師傅）", task.tailor_name || "");
-    if (tailor === null || !tailor.trim()) return;
-    const [org, name] = tailor.split("/").map(item => item.trim());
-    task.tailor_org = name ? org : (task.tailor_org || "自雇团队"); task.tailor_name = name || org; task.status = "已分配待師傅收貨"; task.location = task.store_name || "門市"; (task.items || []).forEach(item => item.status = task.status); recordAlterationHistory(task, `分配師傅：${task.tailor_org} / ${task.tailor_name}`);
-  } else if (action === "receive") {
+  if (action === "receive") {
     if (!confirm("確認師傅已逐件掃碼收貨？")) return; task.status = "改衣中"; task.location = task.tailor_org || task.tailor_name; (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; }); addAlterationHandover(task, "交給師傅", task.store_name || "門市", task.tailor_name, "師傅掃碼確認收貨"); recordAlterationHistory(task, "師傅確認收貨");
   } else if (action === "return") {
     if (!confirm("確認師傅已交回全部服裝？")) return; task.status = "師傅已交回"; task.location = task.store_name || "門市"; (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; }); addAlterationHandover(task, "師傅交回", task.tailor_name, task.store_name || "門市", "待門市逐件驗收"); recordAlterationHistory(task, "師傅交回門市");
@@ -904,8 +983,19 @@ function submitAlterationTask(form) {
   if (!employee || !data.sku_id.trim() || !data.garment_name.trim() || !data.alteration.trim() || !Number.isInteger(Number(data.quantity)) || Number(data.quantity) < 1) return showToast("請完整填寫員工、SKU、服裝、數量和修改內容。");
   const createdAt = nowText();
   const id = `ALT${createdAt.replace(/[^0-9]/g, "").slice(0, 12)}${String((store.alterationTasks || []).length + 1).padStart(3, "0")}`;
-  const quantity = Number(data.quantity); const itemList = Array.from({length: quantity}, (_, index) => ({ id: `${id}-${String(index + 1).padStart(2, "0")}`, barcode: `ALT-${id.slice(3)}-${String(index + 1).padStart(2, "0")}`, sku_id: data.sku_id.trim(), garment_name: data.garment_name.trim(), quantity: 1, alteration: data.alteration.trim(), status: "門市已收衣", location: data.store_name.trim() || "未記錄門市", completed: false, anomaly: false })); const task = { id, employee_id: employee.employee_id, employee_name: employee.name, employee_gender: employee.gender, employee_unit: employee.unit_name, order_id: data.order_id || employee.order_id, store_name: data.store_name.trim() || "未記錄門市", type: data.requires_fee === "on" ? "收費改衣" : data.type, status: "門市已收衣", location: data.store_name.trim() || "未記錄門市", tailor_org: "", tailor_name: "", requires_fee: data.requires_fee === "on", fee_amount: data.fee_amount.trim(), paid: false, created_by: currentUser.username, created_at: createdAt, updated_at: createdAt, items: itemList, handovers: [{ id: uid("HOV"), type: "門市收衣", from: employee.name, to: data.store_name.trim() || "門市", operator: currentUser.username, handover_at: createdAt, location: data.store_name.trim() || "門市", expected_quantity: quantity, actual_quantity: quantity, barcodes: itemList.map(item => item.barcode), remark: "現場清點完成" }], anomalies: [], history: [{ action: "建立改衣任務", operator: currentUser.username, at: createdAt }] };
-  store.alterationTasks ||= []; store.alterationTasks.unshift(task); saveStore(store); form.closest("dialog").close(); renderAll(); showToast(`改衣任務 ${id} 已建立。`);
+  const quantity = Number(data.quantity);
+  const tasks = Array.from({ length: quantity }, (_, index) => {
+    const taskId = `${id}-${String(index + 1).padStart(2, "0")}`;
+    const barcode = `ALT-${taskId.slice(3)}-01`;
+    const item = { id: `${taskId}-01`, barcode, sku_id: data.sku_id.trim(), garment_name: data.garment_name.trim(), quantity: 1, alteration: data.alteration.trim(), status: "門市已收衣", location: data.store_name.trim() || "未記錄門市", completed: false, anomaly: false };
+    return { id: taskId, employee_id: employee.employee_id, employee_name: employee.name, employee_gender: employee.gender, employee_unit: employee.unit_name, order_id: data.order_id || employee.order_id, store_name: data.store_name.trim() || "未記錄門市", type: data.requires_fee === "on" ? "收費改衣" : data.type, status: "門市已收衣", location: data.store_name.trim() || "未記錄門市", tailor_org: "", tailor_name: "", requires_fee: data.requires_fee === "on", fee_amount: data.fee_amount.trim(), paid: false, created_by: currentUser.username, created_at: createdAt, updated_at: createdAt, items: [item], handovers: [{ id: uid("HOV"), type: "門市收衣", from: employee.name, to: data.store_name.trim() || "門市", operator: currentUser.username, operator_id: currentUser.id, handover_at: createdAt, location: data.store_name.trim() || "門市", expected_quantity: 1, actual_quantity: 1, barcodes: [barcode], remark: "現場清點完成" }], anomalies: [], history: [{ action: "建立改衣任務", operator: currentUser.username, operator_id: currentUser.id, at: createdAt }] };
+  });
+  store.alterationTasks ||= [];
+  store.alterationTasks.unshift(...tasks);
+  saveStore(store);
+  form.closest("dialog").close();
+  renderAll();
+  showToast(`已建立 ${tasks.length} 个单件改衣任务。`);
 }
 
 function renderRecords(gender) {
@@ -2182,6 +2272,15 @@ document.getElementById("alteration-task-form").addEventListener("submit", event
   event.preventDefault();
   if (isOwner() || hasPermission("alteration_view")) submitAlterationTask(event.currentTarget);
 });
+document.getElementById("alteration-assign-form").addEventListener("submit", event => {
+  event.preventDefault();
+  if (isOwner() || hasPermission("alteration_process")) confirmAlterationAssignment(event.currentTarget);
+});
+document.getElementById("alteration-barcode-scan").addEventListener("keydown", event => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addAlterationBarcodeScan(event.currentTarget.value);
+});
 document.getElementById("export-alterations").addEventListener("click", () => {
   if (!isOwner() && !hasPermission("alteration_export")) return;
   if (!filteredAlterations.length) return showToast("當前篩選沒有可導出的改衣任務。");
@@ -2543,11 +2642,17 @@ document.body.addEventListener("click", (event) => {
     renderAfterSales();
   }
   if (button.dataset.alterationDetail) openAlterationDetail(button.dataset.alterationDetail);
+  if (button.dataset.removeAlterationScan) {
+    alterationAssignmentState.taskIds.delete(button.dataset.removeAlterationScan);
+    renderAlterationAssignmentScans();
+    document.getElementById("alteration-barcode-scan")?.focus();
+  }
   if (button.dataset.alterationAction) {
     if (button.dataset.alterationAction === "assign" || button.dataset.alterationAction === "receive" || button.dataset.alterationAction === "return" || button.dataset.alterationAction === "verify" || button.dataset.alterationAction === "stop" || button.dataset.alterationAction === "paid") {
       if (!isOwner() && !hasPermission("alteration_process")) return;
     } else if (!isOwner() && !hasPermission("alteration_anomaly")) return;
-    processAlteration(button.dataset.alterationId, button.dataset.alterationAction, button.dataset.anomalyId || "");
+    if (button.dataset.alterationAction === "assign") openAlterationAssignment(button.dataset.alterationId);
+    else processAlteration(button.dataset.alterationId, button.dataset.alterationAction, button.dataset.anomalyId || "");
   }
   if (button.dataset.alterationPage) {
     alterationPagination.page += button.dataset.alterationPage === "next" ? 1 : -1;
@@ -2632,6 +2737,7 @@ document.body.addEventListener("click", (event) => {
   if (button.hasAttribute("data-close-after-sale-create")) document.getElementById("after-sale-create-dialog").close();
   if (button.hasAttribute("data-close-alteration-detail")) document.getElementById("alteration-detail-dialog").close();
   if (button.hasAttribute("data-close-alteration-task")) document.getElementById("alteration-task-dialog").close();
+  if (button.hasAttribute("data-close-alteration-assign")) document.getElementById("alteration-assign-dialog").close();
   if (button.dataset.exportRecords) exportRecords(button.dataset.exportRecords, button.closest("[data-record-export-panel]"));
   if (button.dataset.recordPage) {
     const paging = recordPagination[button.dataset.recordPage];
