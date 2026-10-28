@@ -488,6 +488,39 @@ textarea { width: 100%; border: 1px solid #cbd6e2; border-radius: 8px; padding: 
 .permission-fieldset legend { padding: 0 6px; font-weight: 900; }
 .permission-fieldset > label { display: flex; align-items: center; gap: 9px; font-weight: 700; }
 .permission-fieldset input[type="checkbox"], .permission-fieldset input[type="radio"] { width: 18px; height: 18px; min-height: auto; }
+.role-dialog { width: min(1040px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; }
+.role-basic-fields { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(220px, .65fr); gap: 16px; align-items: start; }
+.role-status-fieldset { display: flex; align-items: center; gap: 18px; min-height: 40px; margin: 0; border: 0; padding: 0; }
+.role-status-fieldset legend { margin-right: 2px; padding: 0; color: #34465b; font-weight: 800; }
+.role-status-fieldset label { display: flex; align-items: center; gap: 7px; font-weight: 700; }
+.role-status-fieldset input { width: 17px; height: 17px; min-height: auto; }
+.permission-matrix-section { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 16px; }
+.permission-matrix-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.permission-matrix-head h4 { margin: 0; font-size: 16px; }
+.permission-matrix-head p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+.permission-matrix-actions { display: flex; gap: 8px; }
+.permission-matrix-actions button { min-height: 34px; padding: 0 11px; font-size: 13px; }
+.permission-matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.permission-matrix { width: 100%; min-width: 720px; border-collapse: collapse; }
+.permission-matrix th, .permission-matrix td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 12px 14px; vertical-align: middle; text-align: left; }
+.permission-matrix th:last-child, .permission-matrix td:last-child { border-right: 0; }
+.permission-matrix tbody tr:last-child td { border-bottom: 0; }
+.permission-matrix th { background: #f8fafc; color: #334155; font-size: 13px; }
+.permission-matrix th:first-child { width: 160px; }
+.permission-matrix th:nth-child(2) { width: 220px; }
+.permission-group-cell, .permission-page-cell { background: #fff; }
+.permission-group-cell label, .permission-page-cell label, .permission-action { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; }
+.permission-group-cell label { font-weight: 900; }
+.permission-matrix input[type="checkbox"] { width: 16px; height: 16px; min-height: auto; margin: 0; accent-color: var(--blue); }
+.permission-actions-cell { display: flex; flex-wrap: wrap; gap: 12px 22px; }
+.permission-action { color: #475569; font-size: 13px; font-weight: 700; }
+.role-help { display: flex; gap: 10px; align-items: baseline; padding: 12px 14px; background: #f0f7ff; border-color: #c7def4; color: #1d4f7a; }
+.role-help span { color: #55718c; font-size: 13px; }
+.subaccount-role-field { grid-column: 1 / -1; }
+.subaccount-role-field select[multiple] { min-height: 112px; padding: 8px 10px; line-height: 1.7; }
+.subaccount-role-field small { color: var(--muted); font-size: 12px; font-weight: 600; }
+.table-subtext { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 600; }
+@media (max-width: 700px) { .role-basic-fields { grid-template-columns: 1fr; } .role-status-fieldset { padding-top: 2px; } .permission-matrix-head { flex-direction: column; } }
 .status-pill { display: inline-flex; align-items: center; min-height: 26px; border-radius: 999px; padding: 0 9px; background: #e8f6f0; color: var(--green); font-size: 12px; font-weight: 900; }
 .status-pill.is-disabled { background: #f1f5f9; color: var(--muted); }
 .status-pill.is-pending { background: #fff7e6; color: #9a5b00; }

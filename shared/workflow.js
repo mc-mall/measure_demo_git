@@ -39,6 +39,22 @@ function seedStore() {
       { id: "E002", employee_id: "EMP002", name: "李國輝", gender: "男", height_cm: "176", weight_kg: "72", unit_name: "香港分部", order_id: "ORDER001" },
     ],
     measurements: [],
+    roles: [
+      {
+        id: "ROLE_OPERATOR",
+        name: "量體運營",
+        status: "enabled",
+        permissions: ["dashboard_view", "employee_view", "record_view_male", "record_view_female", "measurement_followup"],
+        updated_at: "",
+      },
+      {
+        id: "ROLE_AFTER_SALES",
+        name: "售後運營",
+        status: "enabled",
+        permissions: ["dashboard_view", "employee_view", "after_sales"],
+        updated_at: "",
+      },
+    ],
     subaccounts: [],
     appointmentSlots: [
       { id: "APS001", order_id: "ORDER001", address: "澳門門店 2 樓量體區", date: seedDate(3), start_time: "10:00", end_time: "12:00", max_bookings: 6, allow_overbook: false, status: "enabled" },
@@ -84,6 +100,22 @@ function seedStore() {
 function normalize(store) {
   store.departments = Array.from(new Set((Array.isArray(store.departments) ? store.departments : ["深圳總部", "澳門分部", "香港分部"]).map(item => String(item || "").trim()).filter(Boolean)));
   store.orders = (store.orders || []).map(order => ({ ...order, registration_token: order.registration_token || registrationToken(order.order_id) }));
+  const defaultRoles = seedStore().roles;
+  store.roles = Array.isArray(store.roles) && store.roles.length ? store.roles : defaultRoles;
+  store.roles = store.roles.map(role => ({
+    ...role,
+    id: role.id || `ROLE_${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+    name: String(role.name || "未命名角色").trim(),
+    status: role.status === "disabled" ? "disabled" : "enabled",
+    permissions: Array.isArray(role.permissions) ? [...new Set(role.permissions)] : [],
+    updated_at: role.updated_at || "",
+  }));
+  store.subaccounts = (store.subaccounts || []).map(account => {
+    const roleIds = Array.isArray(account.role_ids)
+      ? [...new Set(account.role_ids.filter(Boolean))]
+      : (account.role_id ? [account.role_id] : []);
+    return { ...account, role_ids: roleIds, role_id: roleIds[0] || "" };
+  });
   if (store.workflowVersion === 1) return store;
   const oldVersion = store.afterSaleStatusVersion;
   const map = { "已登記": after[0], "已處理": after[1], "已發回": after[4], "已完成": oldVersion === 2 ? after[4] : after[1] };
