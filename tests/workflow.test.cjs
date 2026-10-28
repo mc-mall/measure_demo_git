@@ -52,3 +52,14 @@ test('multiple receipts accumulate, legacy receipt remains one batch, closed gar
   sweater.closed={reason:'現場退換'};assert.equal(w.readyForFactory(r),true);
   coat.closed={reason:'現場處理'};assert.equal(w.readyForFactory(r),false);
 });
+test('alteration tasks keep one-item barcode and audit collections through normalization', () => {
+  const w = setup();
+  const store = w.read();
+  assert.ok(store.alterationTasks.length >= 2);
+  assert.ok(store.alterationTasks.every(task => task.items.every(item => item.barcode && item.id)));
+  const normalized = w.normalize({afterSales: [], employees: [], alterationTasks: [{id: 'ALT1'}]});
+  assert.equal(normalized.alterationTasks[0].items.length, 0);
+  assert.equal(normalized.alterationTasks[0].handovers.length, 0);
+  assert.equal(normalized.alterationTasks[0].anomalies.length, 0);
+  assert.equal(normalized.alterationTasks[0].history.length, 0);
+});
