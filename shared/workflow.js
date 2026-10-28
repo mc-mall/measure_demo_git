@@ -135,7 +135,7 @@ function normalize(store) {
     anomalies: Array.isArray(task.anomalies) ? task.anomalies : [],
     history: Array.isArray(task.history) ? task.history : [],
     type: task.type === "员工中止后重新发起" ? "普通改衣" : (task.type || "普通改衣"),
-    status: task.status || "門市已收衣",
+    status: task.status === "已分配待師傅收貨" ? "改衣中" : (task.status || "門市已收衣"),
     location: task.location || task.store_name || "未記錄",
   }));
   if (store.workflowVersion === 1) return store;

@@ -14,6 +14,7 @@ const afterSalePagination = { page: 1, pageSize: 15 };
 const alterationPagination = { page: 1, pageSize: 15 };
 const alterationSelection = new Set();
 const alterationAssignmentState = { taskIds: new Set(), currentTaskId: "" };
+const alterationReturnState = { taskIds: new Set() };
 const orderEditorState = { step: 1, garments: [], quantityRules: [] };
 const signatureDetailState = { orderId: "", page: 1, pageSize: 15 };
 const appointmentSelection = new Set();
@@ -746,7 +747,7 @@ function advanceAfterSale(record, status, deliveryDate) {
 }
 
 let filteredAlterations = [];
-const alterationStatuses = ["門市已收衣", "待分配", "已分配待師傅收貨", "改衣中", "師傅已交回", "門市驗收", "待派送", "支行代簽", "已完成", "員工中止", "門市確認退回", "待處理異常"];
+const alterationStatuses = ["門市已收衣", "待分配", "改衣中", "師傅已交回", "門市驗收", "待派送", "支行代簽", "已完成", "員工中止", "門市確認退回", "待處理異常"];
 
 function alterationItemQuantity(task) {
   const expected = (task.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
@@ -799,8 +800,12 @@ function updateAlterationSelection() {
   });
   const count = alterationSelection.size;
   const countNode = document.getElementById("alteration-selected-count");
+  const assignButton = document.getElementById("open-alteration-assign");
+  const returnButton = document.getElementById("open-alteration-return");
   const printButton = document.getElementById("print-alteration-barcodes");
   if (countNode) countNode.textContent = `已选 ${count} 个任务`;
+  if (assignButton) assignButton.disabled = count === 0;
+  if (returnButton) returnButton.disabled = count === 0;
   if (printButton) printButton.disabled = count === 0;
   const pageChecks = [...document.querySelectorAll(".alteration-row-check")];
   const pageCheck = document.getElementById("alteration-check-page");
@@ -834,11 +839,7 @@ function openAlterationDetail(taskId) {
   document.getElementById("alteration-detail-subtitle").textContent = `${task.employee_id} · ${task.employee_name}｜${task.order_id} · ${task.store_name || "未記錄門市"}`;
   const canProcess = isOwner() || hasPermission("alteration_process");
   const actions = [];
-  if (canProcess && ["門市已收衣", "待分配"].includes(task.status)) actions.push(`<button type="button" data-alteration-action="assign" data-alteration-id="${escapeHtml(task.id)}">分配師傅</button>`);
-  if (canProcess && task.status === "已分配待師傅收貨") actions.push(`<button type="button" data-alteration-action="receive" data-alteration-id="${escapeHtml(task.id)}">師傅確認收貨</button>`);
-  if (canProcess && task.status === "改衣中") actions.push(`<button type="button" data-alteration-action="return" data-alteration-id="${escapeHtml(task.id)}">師傅交回門市</button>`);
-  if (canProcess && task.status === "師傅已交回") actions.push(`<button type="button" data-alteration-action="verify" data-alteration-id="${escapeHtml(task.id)}">門市驗收</button>`);
-  if (canProcess && ["門市已收衣", "待分配", "已分配待師傅收貨"].includes(task.status)) actions.push(`<button class="secondary" type="button" data-alteration-action="stop" data-alteration-id="${escapeHtml(task.id)}">員工中止</button>`);
+  if (canProcess && ["門市已收衣", "待分配"].includes(task.status)) actions.push(`<button class="secondary" type="button" data-alteration-action="stop" data-alteration-id="${escapeHtml(task.id)}">員工中止</button>`);
   if (canProcess && task.requires_fee && !task.paid) actions.push(`<button class="secondary" type="button" data-alteration-action="paid" data-alteration-id="${escapeHtml(task.id)}">登記已收款</button>`);
   if (isOwner() || hasPermission("alteration_anomaly")) actions.push(`<button class="danger" type="button" data-alteration-action="anomaly" data-alteration-id="${escapeHtml(task.id)}">登記異常</button>`);
   const anomalyRows = (task.anomalies || []).map(item => `<tr><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.description)}</td><td>${escapeHtml(item.created_by)} · ${escapeHtml(item.created_at)}</td><td>${item.closed_at ? `已關閉：${escapeHtml(item.conclusion)}<br>${escapeHtml(item.closed_by)} · ${escapeHtml(item.closed_at)}` : `<span class="status-pill is-pending">待處理</span> ${isOwner() || hasPermission("alteration_anomaly") ? `<button type="button" data-alteration-action="close-anomaly" data-alteration-id="${escapeHtml(task.id)}" data-anomaly-id="${escapeHtml(item.id)}">填寫處理結論</button>` : ""}`}</td></tr>`).join("");
@@ -869,13 +870,17 @@ function renderAlterationAssignmentScans() {
   }), "请扫描任务条码");
 }
 
-function openAlterationAssignment(taskId = "") {
+function openAlterationAssignment(taskId = "", initialTaskIds = []) {
   if (!isOwner() && !hasPermission("alteration_process")) return;
   const store = loadStore();
-  alterationAssignmentState.taskIds = new Set();
+  alterationAssignmentState.taskIds = new Set(initialTaskIds);
   alterationAssignmentState.currentTaskId = taskId;
   const task = (store.alterationTasks || []).find(item => item.id === taskId);
   if (task?.items?.[0]?.barcode && ["門市已收衣", "待分配"].includes(task.status)) alterationAssignmentState.taskIds.add(task.id);
+  alterationAssignmentState.taskIds = new Set([...alterationAssignmentState.taskIds].filter(id => {
+    const selected = (store.alterationTasks || []).find(item => item.id === id);
+    return selected && ["門市已收衣", "待分配"].includes(selected.status);
+  }));
   const select = document.getElementById("alteration-assign-tailor");
   select.innerHTML = (store.tailors || []).map(tailor => `<option value="${escapeHtml(tailor.id)}">${escapeHtml(tailor.name)} · ${escapeHtml(tailor.username || "")}</option>`).join("");
   document.getElementById("alteration-assign-error").hidden = true;
@@ -928,32 +933,106 @@ function confirmAlterationAssignment(form) {
   selected.forEach(task => {
     task.tailor_org = task.tailor_org || "自雇团队";
     task.tailor_name = tailor.name;
-    task.status = "已分配待師傅收貨";
-    task.location = task.store_name || "門市";
+    task.status = "改衣中";
+    task.location = task.tailor_org || task.tailor_name;
     (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; });
-    recordAlterationHistory(task, `分配師傅：${task.tailor_name}`);
+    addAlterationHandover(task, "交給師傅", task.store_name || "門市", task.tailor_name, "分配完成，直接进入改衣中");
+    recordAlterationHistory(task, `分配師傅并进入改衣中：${task.tailor_name}`);
   });
   saveStore(store);
   const currentTaskId = alterationAssignmentState.currentTaskId;
   alterationAssignmentState.taskIds = new Set();
   alterationAssignmentState.currentTaskId = "";
+  alterationSelection.clear();
   document.getElementById("alteration-assign-dialog").close();
   renderAll();
   if (currentTaskId) openAlterationDetail(currentTaskId);
-  showToast(`已将 ${selected.length} 个单件任务分配给 ${tailor.name}。`);
+  showToast(`已将 ${selected.length} 个单件任务分配给 ${tailor.name}，状态已更新为改衣中。`);
+}
+
+function renderAlterationReturnScans() {
+  const store = loadStore();
+  const tasks = [...alterationReturnState.taskIds].map(taskId => (store.alterationTasks || []).find(task => task.id === taskId)).filter(Boolean);
+  renderTable("alteration-return-scan-table", ["任务编号", "条码", "员工 / 服装", "当前状态", "操作"], tasks.map(task => {
+    const item = task.items?.[0] || {};
+    return `<tr><td>${escapeHtml(task.id)}</td><td><code>${escapeHtml(item.barcode || "")}</code></td><td>${escapeHtml(task.employee_id)} · ${escapeHtml(task.employee_name)}<small class="table-subtext">${escapeHtml(item.garment_name || "")}</small></td><td>${escapeHtml(task.status)}</td><td><button class="secondary" type="button" data-remove-alteration-return="${escapeHtml(task.id)}">移除</button></td></tr>`;
+  }), "请扫描师傅交回的任务条码");
+}
+
+function openAlterationReturnDialog(initialTaskIds = []) {
+  if (!isOwner() && !hasPermission("alteration_process")) return;
+  const store = loadStore();
+  alterationReturnState.taskIds = new Set(initialTaskIds.filter(taskId => {
+    const task = (store.alterationTasks || []).find(item => item.id === taskId);
+    return task?.status === "改衣中";
+  }));
+  document.getElementById("alteration-return-error").hidden = true;
+  renderAlterationReturnScans();
+  document.getElementById("alteration-return-dialog").showModal();
+  document.getElementById("alteration-return-scan").focus();
+}
+
+function addAlterationReturnScan(value) {
+  const barcode = String(value || "").trim();
+  if (!barcode) return;
+  const error = document.getElementById("alteration-return-error");
+  const store = loadStore();
+  const match = (store.alterationTasks || []).find(task => task.items?.some(item => item.barcode === barcode));
+  if (!match) {
+    error.textContent = `未找到条码 ${barcode} 对应的改衣任务。`;
+    error.hidden = false;
+  } else if (match.status !== "改衣中") {
+    error.textContent = `任务 ${match.id} 当前为“${match.status}”，不能登记师傅交回。`;
+    error.hidden = false;
+  } else if (alterationReturnState.taskIds.has(match.id)) {
+    error.textContent = `任务 ${match.id} 已在待签收清单中，未重复加入。`;
+    error.hidden = false;
+  } else {
+    alterationReturnState.taskIds.add(match.id);
+    error.hidden = true;
+    renderAlterationReturnScans();
+  }
+  document.getElementById("alteration-return-scan").value = "";
+  document.getElementById("alteration-return-scan").focus();
+}
+
+function confirmAlterationReturn() {
+  const store = loadStore();
+  const taskIds = [...alterationReturnState.taskIds];
+  const error = document.getElementById("alteration-return-error");
+  if (!taskIds.length) {
+    error.textContent = "请至少扫描一个师傅交回的任务条码。";
+    error.hidden = false;
+    return;
+  }
+  const selected = (store.alterationTasks || []).filter(task => taskIds.includes(task.id));
+  if (selected.length !== taskIds.length || selected.some(task => task.status !== "改衣中")) {
+    error.textContent = "待签收清单中有任务状态已变化，请重新扫描。";
+    error.hidden = false;
+    return;
+  }
+  selected.forEach(task => {
+    const storeName = task.store_name || "門市";
+    task.status = "待派送";
+    task.location = storeName;
+    (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; item.completed = true; });
+    addAlterationHandover(task, "師傅交回", task.tailor_name || "師傅", storeName, "扫码签收，默认验收通过");
+    addAlterationHandover(task, "門市驗收", storeName, "待派送", "默认验收通过");
+    recordAlterationHistory(task, "師傅交回門市，默认验收通过，进入待派送");
+  });
+  saveStore(store);
+  alterationReturnState.taskIds = new Set();
+  alterationSelection.clear();
+  document.getElementById("alteration-return-dialog").close();
+  renderAll();
+  showToast(`已签收 ${selected.length} 个任务并默认验收通过，状态更新为待派送。`);
 }
 
 function processAlteration(taskId, action, anomalyId = "") {
   const store = loadStore();
   const task = (store.alterationTasks || []).find(item => item.id === taskId);
   if (!task) return;
-  if (action === "receive") {
-    if (!confirm("確認師傅已逐件掃碼收貨？")) return; task.status = "改衣中"; task.location = task.tailor_org || task.tailor_name; (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; }); addAlterationHandover(task, "交給師傅", task.store_name || "門市", task.tailor_name, "師傅掃碼確認收貨"); recordAlterationHistory(task, "師傅確認收貨");
-  } else if (action === "return") {
-    if (!confirm("確認師傅已交回全部服裝？")) return; task.status = "師傅已交回"; task.location = task.store_name || "門市"; (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; }); addAlterationHandover(task, "師傅交回", task.tailor_name, task.store_name || "門市", "待門市逐件驗收"); recordAlterationHistory(task, "師傅交回門市");
-  } else if (action === "verify") {
-    if (!confirm("確認門市已核對數量及修改效果？")) return; task.status = "待派送"; task.location = task.store_name || "門市"; (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; item.completed = true; }); addAlterationHandover(task, "門市驗收", task.store_name || "門市", "待派送", "驗收完成，等待派送"); recordAlterationHistory(task, "門市驗收完成，待派送");
-  } else if (action === "stop") {
+  if (action === "stop") {
     if (!confirm("確認員工中止改衣？系统将保留原任务并进入退回员工流程。")) return; task.status = "員工中止"; task.location = task.store_name || "門市"; (task.items || []).forEach(item => item.status = task.status); recordAlterationHistory(task, "員工中止改衣（交師傅前）");
   } else if (action === "paid") {
     const amount = prompt("請確認實收手工費金額", task.fee_amount || ""); if (amount === null || !amount.trim()) return; task.fee_amount = amount.trim(); task.paid = true; task.paid_by = currentUser.username; task.paid_at = nowText(); recordAlterationHistory(task, `登記手工費已收款：${task.fee_amount}`);
@@ -2276,10 +2355,25 @@ document.getElementById("alteration-assign-form").addEventListener("submit", eve
   event.preventDefault();
   if (isOwner() || hasPermission("alteration_process")) confirmAlterationAssignment(event.currentTarget);
 });
+document.getElementById("open-alteration-assign").addEventListener("click", () => {
+  openAlterationAssignment("", [...alterationSelection]);
+});
+document.getElementById("open-alteration-return").addEventListener("click", () => {
+  openAlterationReturnDialog([...alterationSelection]);
+});
+document.getElementById("alteration-return-form").addEventListener("submit", event => {
+  event.preventDefault();
+  if (isOwner() || hasPermission("alteration_process")) confirmAlterationReturn();
+});
 document.getElementById("alteration-barcode-scan").addEventListener("keydown", event => {
   if (event.key !== "Enter") return;
   event.preventDefault();
   addAlterationBarcodeScan(event.currentTarget.value);
+});
+document.getElementById("alteration-return-scan").addEventListener("keydown", event => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addAlterationReturnScan(event.currentTarget.value);
 });
 document.getElementById("export-alterations").addEventListener("click", () => {
   if (!isOwner() && !hasPermission("alteration_export")) return;
@@ -2647,12 +2741,16 @@ document.body.addEventListener("click", (event) => {
     renderAlterationAssignmentScans();
     document.getElementById("alteration-barcode-scan")?.focus();
   }
+  if (button.dataset.removeAlterationReturn) {
+    alterationReturnState.taskIds.delete(button.dataset.removeAlterationReturn);
+    renderAlterationReturnScans();
+    document.getElementById("alteration-return-scan")?.focus();
+  }
   if (button.dataset.alterationAction) {
     if (button.dataset.alterationAction === "assign" || button.dataset.alterationAction === "receive" || button.dataset.alterationAction === "return" || button.dataset.alterationAction === "verify" || button.dataset.alterationAction === "stop" || button.dataset.alterationAction === "paid") {
       if (!isOwner() && !hasPermission("alteration_process")) return;
     } else if (!isOwner() && !hasPermission("alteration_anomaly")) return;
-    if (button.dataset.alterationAction === "assign") openAlterationAssignment(button.dataset.alterationId);
-    else processAlteration(button.dataset.alterationId, button.dataset.alterationAction, button.dataset.anomalyId || "");
+    processAlteration(button.dataset.alterationId, button.dataset.alterationAction, button.dataset.anomalyId || "");
   }
   if (button.dataset.alterationPage) {
     alterationPagination.page += button.dataset.alterationPage === "next" ? 1 : -1;
@@ -2738,6 +2836,7 @@ document.body.addEventListener("click", (event) => {
   if (button.hasAttribute("data-close-alteration-detail")) document.getElementById("alteration-detail-dialog").close();
   if (button.hasAttribute("data-close-alteration-task")) document.getElementById("alteration-task-dialog").close();
   if (button.hasAttribute("data-close-alteration-assign")) document.getElementById("alteration-assign-dialog").close();
+  if (button.hasAttribute("data-close-alteration-return")) document.getElementById("alteration-return-dialog").close();
   if (button.dataset.exportRecords) exportRecords(button.dataset.exportRecords, button.closest("[data-record-export-panel]"));
   if (button.dataset.recordPage) {
     const paging = recordPagination[button.dataset.recordPage];
