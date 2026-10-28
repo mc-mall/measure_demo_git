@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css?v=20261008-status-import" />
+    <link rel="stylesheet" href="./styles.css?v=20261028-role-permissions" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -35,18 +35,19 @@
           </div>
         </div>
         <nav class="nav">
-          <button class="is-active" type="button" data-view="dashboard">總覽</button>
-          <button type="button" data-view="tailors" data-owner-only>裁縫師管理</button>
-          <button type="button" data-view="orders" data-owner-only>訂單管理</button>
-          <button type="button" data-view="employees">員工管理</button>
-          <button type="button" data-view="after-sales">售後管理</button>
-          <button type="button" data-view="appointments" data-owner-only>預約管理</button>
-          <button type="button" data-view="records-male">男士量體記錄</button>
-          <button type="button" data-view="records-female">女士量體記錄</button>
+          <button class="is-active" type="button" data-view="dashboard" data-permission="dashboard_view">總覽</button>
+          <button type="button" data-view="tailors" data-permission="tailor_view">裁縫師管理</button>
+          <button type="button" data-view="orders" data-permission="order_view">訂單管理</button>
+          <button type="button" data-view="employees" data-permission="employee_view">員工管理</button>
+          <button type="button" data-view="after-sales" data-permission="after_sales">售後管理</button>
+          <button type="button" data-view="appointments" data-permission="appointment_view">預約管理</button>
+          <button type="button" data-view="records-male" data-permission="record_view_male">男士量體記錄</button>
+          <button type="button" data-view="records-female" data-permission="record_view_female">女士量體記錄</button>
           <span class="nav-section" data-owner-only>系統配置</span>
           <button class="nav-child" type="button" data-view="patterns" data-owner-only>衣服版型管理</button>
           <button class="nav-child" type="button" data-view="products" data-owner-only>產品配置</button>
           <button class="nav-child" type="button" data-view="subaccounts" data-owner-only>子賬號管理</button>
+          <button class="nav-child" type="button" data-view="roles" data-owner-only>角色權限管理</button>
           <button class="nav-child" type="button" data-view="departments" data-owner-only>部門管理</button>
         </nav>
         <button class="ghost" type="button" id="logout">退出登入</button>
@@ -134,7 +135,7 @@
         <section class="view" id="view-after-sales">
           <div class="panel list-toolbar">
             <div><h3>售後管理</h3><p>員工提交售後 → 門市現場簽收 → 工廠處理 → 完成派送。</p></div>
-            <div class="row-actions"><button type="button" id="open-after-status-import">導入更新狀態</button><button type="button" id="export-after-sales">導出篩選明細</button></div>
+            <div class="row-actions"><button type="button" id="open-after-status-import">導入更新狀態</button><button type="button" id="export-after-sales" data-permission="after_sales_export">導出篩選明細</button></div>
           </div>
           <div class="panel after-sale-filters">
             <label><span>員工 / 登記編號</span><input id="after-sale-filter-keyword" type="search" placeholder="員工編號、姓名或登記編號" /></label>
@@ -157,8 +158,8 @@
             <div><h3>預約時段</h3><p>配置量身服務地址、服務時間與接待容量，供員工端直接登記。</p></div>
             <div class="row-actions appointment-toolbar-actions">
               <span id="appointment-selected-count">已選 0 個時段</span>
-              <button class="secondary" type="button" id="export-appointment-details" disabled>導出明細</button>
-              <button type="button" id="open-appointment-slot-editor">新增時段</button>
+              <button class="secondary" type="button" id="export-appointment-details" data-permission="appointment_export" disabled>導出明細</button>
+              <button type="button" id="open-appointment-slot-editor" data-permission="appointment_manage">新增時段</button>
             </div>
           </div>
           <div class="panel appointment-summary" id="appointment-summary"></div>
@@ -200,8 +201,13 @@
         </section>
 
         <section class="view" id="view-subaccounts">
-          <div class="panel list-toolbar"><div><h3>子賬號列表</h3><p>配置運營人員的登入信息、功能權限及賬號狀態。</p></div><button type="button" id="open-subaccount-editor">新增子賬號</button></div>
+          <div class="panel list-toolbar"><div><h3>子賬號列表</h3><p>配置登入信息並綁定角色，權限由角色統一繼承。</p></div><button type="button" id="open-subaccount-editor">新增子賬號</button></div>
           <div class="panel table-wrap"><table id="subaccount-table"></table></div>
+        </section>
+        <section class="view" id="view-roles">
+          <div class="panel list-toolbar"><div><h3>角色權限管理</h3><p>按角色配置頁面與接口權限，子賬號綁定角色後即時生效。</p></div><button type="button" id="open-role-editor">新增角色</button></div>
+          <div class="panel role-help"><strong>配置提示</strong><span>勾選頁面操作後，角色可使用對應功能；停用角色後，綁定該角色的子賬號將暫停登入。</span></div>
+          <div class="panel table-wrap"><table id="role-table"></table></div>
         </section>
         <section class="view" id="view-departments">
           <div class="panel list-toolbar"><div><h3>部門管理</h3><p>維護員工自主註冊時可選的部門。</p></div><button type="button" id="add-department">新增部門</button></div>
@@ -338,14 +344,25 @@
           <label><span>登入密碼</span><input name="password" type="password" minlength="6" autocomplete="new-password" required /><small id="subaccount-password-tip">至少 6 位；原型僅保存哈希值</small></label>
           <label><span>賬號狀態</span><select name="status"><option value="enabled">啟用</option><option value="disabled">停用</option></select></label>
         </div>
-        <fieldset class="permission-fieldset"><legend>功能權限</legend>
-          <label><input type="checkbox" name="permission" value="employee_view" checked /><span>查看員工及量體檔案</span></label>
-          <label><input type="checkbox" name="permission" value="measurement_followup" checked /><span>更新量體事項跟進狀態與備註</span></label>
-          <label><input type="checkbox" name="permission" value="after_sales" /><span>售後管理：簽收、關閉服裝及推進狀態</span></label>
-          <label><input type="checkbox" name="permission" value="record_export" /><span>導出量體記錄</span></label>
-        </fieldset>
+        <label class="subaccount-role-field"><span>角色（可多選）</span><select name="role_ids" id="subaccount-role-select" multiple size="4" required></select><small id="subaccount-role-summary">可同時選擇多個角色，權限將合併生效。</small></label>
         <p class="form-error" id="subaccount-form-error" hidden></p>
         <div class="dialog-actions"><button type="submit">保存子賬號</button></div>
+      </form>
+    </dialog>
+    <dialog class="entity-dialog role-dialog" id="role-dialog">
+      <form id="role-form">
+        <div class="dialog-head"><div><h3 id="role-dialog-title">新增角色</h3><p>配置角色可訪問的頁面與接口操作。</p></div><button class="secondary" type="button" data-close-role>取消</button></div>
+        <input type="hidden" name="id" />
+        <div class="role-basic-fields">
+          <label><span>角色名稱</span><input name="name" maxlength="30" placeholder="例如：量體運營" required /></label>
+          <fieldset class="role-status-fieldset"><legend>狀態</legend><label><input type="radio" name="status" value="enabled" checked /><span>啟用</span></label><label><input type="radio" name="status" value="disabled" /><span>停用</span></label></fieldset>
+        </div>
+        <section class="permission-matrix-section" aria-labelledby="permission-matrix-title">
+          <div class="permission-matrix-head"><div><h4 id="permission-matrix-title">分配權限</h4><p>按歸屬、頁面及接口逐項選擇。</p></div><div class="permission-matrix-actions"><button class="secondary" type="button" id="role-select-all">全選</button><button class="secondary" type="button" id="role-clear-all">清空</button></div></div>
+          <div class="permission-matrix-wrap"><table class="permission-matrix" id="permission-matrix-table"></table></div>
+        </section>
+        <p class="form-error" id="role-form-error" hidden></p>
+        <div class="dialog-actions"><button type="submit">保存角色</button></div>
       </form>
     </dialog>
     <dialog class="entity-dialog appointment-slot-dialog" id="appointment-slot-dialog">
@@ -454,8 +471,8 @@
       </form>
     </dialog>
     <dialog id="catalog-dialog" class="catalog-dialog"></dialog>
-    <script src="../shared/workflow.js?v=20261008-status-import"></script>
-    <script src="./app.js?v=20261008-status-import"></script>
+    <script src="../shared/workflow.js?v=20261028-role-permissions"></script>
+    <script src="./app.js?v=20261028-role-permissions"></script>
     <script src="./status-import.js?v=20261008-status-import"></script>
     <script src="./catalog.js?v=20260919-field-warning"></script>
   </body>

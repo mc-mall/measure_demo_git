@@ -69,6 +69,26 @@ const analysisGarments = {
 
 const comparisonState = { step: 1, garmentSignature: "", results: [], stats: null, config: null };
 
+// The matrix mirrors the backend's permission model while keeping each key
+// mapped to an existing prototype capability. New actions can be added here
+// without changing the role editor or storage shape.
+const rolePermissionMatrix = [
+  { group: "工作台", pages: [{ name: "總覽", permissions: [{ key: "dashboard_view", label: "查詢" }] }] },
+  { group: "量體管理", pages: [
+    { name: "員工管理", permissions: [{ key: "employee_view", label: "查詢" }] },
+    { name: "男士量體記錄", permissions: [{ key: "record_view_male", label: "查詢" }, { key: "record_export", label: "導出" }, { key: "measurement_followup", label: "跟進" }] },
+    { name: "女士量體記錄", permissions: [{ key: "record_view_female", label: "查詢" }, { key: "record_export", label: "導出" }, { key: "measurement_followup", label: "跟進" }] },
+    { name: "預約管理", permissions: [{ key: "appointment_view", label: "查詢" }, { key: "appointment_export", label: "導出" }, { key: "appointment_manage", label: "新增 / 編輯" }] },
+  ] },
+  { group: "訂單與售後", pages: [
+    { name: "裁縫師管理", permissions: [{ key: "tailor_view", label: "查詢" }] },
+    { name: "訂單管理", permissions: [{ key: "order_view", label: "查詢" }] },
+    { name: "售後管理", permissions: [{ key: "after_sales", label: "查詢 / 處理" }, { key: "after_sales_export", label: "導出" }] },
+  ] },
+];
+
+const allRolePermissionKeys = rolePermissionMatrix.flatMap((group) => group.pages.flatMap((page) => page.permissions.map((permission) => permission.key)));
+
 function seedStore() { return MeasureWorkflow.normalize(MeasureWorkflow.seedStore()); }
 
 function ownerSession(username = "主賬號") {
@@ -97,8 +117,31 @@ function isOwner() {
   return currentUser?.role === "owner";
 }
 
+function accountRoleIds(account) {
+  if (Array.isArray(account?.role_ids)) return [...new Set(account.role_ids.filter(Boolean))];
+  return account?.role_id ? [account.role_id] : [];
+}
+
+function rolesForAccount(account, store = loadStore()) {
+  const roleIds = new Set(accountRoleIds(account));
+  return (store.roles || []).filter((role) => roleIds.has(role.id));
+}
+
+function effectivePermissions(user = currentUser, store = loadStore()) {
+  if (!user) return [];
+  if (user.role === "owner") return allRolePermissionKeys;
+  const roles = rolesForAccount(user, store);
+  const hasRoleBinding = accountRoleIds(user).length > 0;
+  const enabledRoles = roles.filter((role) => role.status === "enabled");
+  if (hasRoleBinding && !enabledRoles.length) return [];
+  const permissions = [...new Set(hasRoleBinding ? enabledRoles.flatMap((role) => role.permissions || []) : (user.permissions || []))];
+  // Keep accounts created before role management usable during migration.
+  if (permissions.includes("employee_view")) permissions.push("record_view_male", "record_view_female");
+  return [...new Set(permissions)];
+}
+
 function hasPermission(permission) {
-  return isOwner() || Boolean(currentUser?.permissions?.includes(permission));
+  return effectivePermissions().includes(permission);
 }
 
 function accessibleOrders(store = loadStore()) {
@@ -184,7 +227,7 @@ function uid(prefix) {
 
 function switchView(name) {
   const targetButton = navButtons.find((button) => button.dataset.view === name);
-  if (!targetButton || targetButton.hidden) name = isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : "records-male");
+  if (!targetButton || targetButton.hidden) name = isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : hasPermission("record_view_male") ? "records-male" : "dashboard");
   views.forEach((view) => view.classList.toggle("is-active", view.id === `view-${name}`));
   navButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.view === name));
   document.getElementById("view-title").textContent = navButtons.find((button) => button.dataset.view === name)?.textContent || "總覽";
@@ -192,15 +235,15 @@ function switchView(name) {
 
 function applyAccessPolicy() {
   document.querySelectorAll("[data-owner-only]").forEach((element) => { element.hidden = !isOwner(); });
-  document.querySelector('[data-view="after-sales"]').hidden = !hasPermission("after_sales");
-  document.querySelector('[data-view="employees"]').hidden = !hasPermission("employee_view");
+  document.querySelectorAll("[data-permission]").forEach((element) => { element.hidden = !hasPermission(element.dataset.permission); });
   document.querySelectorAll("[data-export-records]").forEach((button) => { button.hidden = !hasPermission("record_export"); });
   const userBox = document.getElementById("current-user");
   userBox.hidden = !currentUser;
   document.getElementById("current-user-name").textContent = currentUser?.name || currentUser?.username || "";
-  document.getElementById("current-user-role").textContent = isOwner() ? "主賬號 · 全部權限" : "子賬號 · 運營跟進";
+  const roleName = isOwner() ? "主賬號 · 全部權限" : (rolesForAccount(currentUser).map((role) => role.name).join("、") || "子賬號 · 舊權限");
+  document.getElementById("current-user-role").textContent = roleName;
   const active = navButtons.find((button) => button.classList.contains("is-active"));
-  if (active?.hidden) switchView(hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : "records-male");
+  if (active?.hidden) switchView(hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : hasPermission("record_view_male") ? "records-male" : "dashboard");
 }
 
 function orderLabel(orderId) {
@@ -256,7 +299,7 @@ function renderTailors() {
   const rows = loadStore().tailors.map((item) => `
     <tr>
       <td>${item.name}</td><td>${item.username}</td><td>${item.has_password ? "已設置" : "未設置"}</td>
-      <td><div class="row-actions"><button type="button" data-edit-tailor="${item.id}">編輯</button><button class="danger" type="button" data-delete-tailor="${item.id}">刪除</button></div></td>
+      <td><div class="row-actions">${isOwner() ? `<button type="button" data-edit-tailor="${item.id}">編輯</button><button class="danger" type="button" data-delete-tailor="${item.id}">刪除</button>` : "-"}</div></td>
     </tr>
   `);
   renderTable("tailor-table", ["姓名", "登入賬號", "密碼狀態", "操作"], rows);
@@ -267,7 +310,7 @@ function renderOrders() {
     <tr>
       <td>${escapeHtml(item.order_id)}</td><td>${escapeHtml(item.company_name)}</td>
       <td>${garmentSummary(item, "男")}</td><td>${garmentSummary(item, "女")}</td><td>${quantityRuleSummary(item)}</td>
-      <td><div class="row-actions"><button type="button" data-order-progress="${escapeHtml(item.order_id)}">變更訂單進度</button><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-registration-qr="${escapeHtml(item.order_id)}">員工註冊二維碼</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button></div></td>
+      <td><div class="row-actions">${isOwner() ? `<button type="button" data-order-progress="${escapeHtml(item.order_id)}">變更訂單進度</button><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-registration-qr="${escapeHtml(item.order_id)}">員工註冊二維碼</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button>` : `<button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button>`}</div></td>
     </tr>
   `);
   renderTable("order-table", ["訂單號", "公司名", "男士服裝配置", "女士服裝配置", "組合數量限制", "操作"], rows);
@@ -631,8 +674,64 @@ function renderRecords(gender) {
 
 function renderSubaccounts() {
   const accounts = loadStore().subaccounts || [];
-  const rows = accounts.map((account) => `<tr><td>${escapeHtml(account.name)}</td><td>${escapeHtml(account.username)}</td><td><span class="status-pill ${account.status === "enabled" ? "" : "is-disabled"}">${account.status === "enabled" ? "已啟用" : "已停用"}</span></td><td>${escapeHtml(account.last_login_at || "從未登入")}</td><td><div class="row-actions"><button type="button" data-edit-subaccount="${account.id}">編輯</button><button class="secondary" type="button" data-toggle-subaccount="${account.id}">${account.status === "enabled" ? "停用" : "啟用"}</button><button class="danger" type="button" data-delete-subaccount="${account.id}">刪除</button></div></td></tr>`);
-  renderTable("subaccount-table", ["姓名", "登入賬號", "狀態", "最近登入", "操作"], rows, "暫無子賬號");
+  const store = loadStore();
+  const rows = accounts.map((account) => {
+    const roles = rolesForAccount(account, store);
+    const roleNames = roles.map((role) => `${escapeHtml(role.name)}${role.status === "disabled" ? ' <span class="status-pill is-disabled">已停用</span>' : ""}`).join("、");
+    return `<tr><td><strong>${escapeHtml(account.name)}</strong><small class="table-subtext">${escapeHtml(account.username)}</small></td><td>${roleNames || "未綁定角色"}</td><td><span class="status-pill ${account.status === "enabled" ? "" : "is-disabled"}">${account.status === "enabled" ? "已啟用" : "已停用"}</span></td><td>${escapeHtml(account.last_login_at || "從未登入")}</td><td><div class="row-actions"><button type="button" data-edit-subaccount="${account.id}">編輯</button><button class="secondary" type="button" data-toggle-subaccount="${account.id}">${account.status === "enabled" ? "停用" : "啟用"}</button><button class="danger" type="button" data-delete-subaccount="${account.id}">刪除</button></div></td></tr>`;
+  });
+  renderTable("subaccount-table", ["子賬號 / 登入賬號", "角色", "賬號狀態", "最近登入", "操作"], rows, "暫無子賬號");
+}
+
+function renderRolePermissionMatrix(selected = []) {
+  const selectedSet = new Set(selected);
+  const rows = rolePermissionMatrix.flatMap((group) => group.pages.map((page, pageIndex) => {
+    const pageKeys = page.permissions.map((permission) => permission.key);
+    const pageChecked = pageKeys.every((key) => selectedSet.has(key));
+    const groupKeys = group.pages.flatMap((item) => item.permissions.map((permission) => permission.key));
+    const groupChecked = groupKeys.every((key) => selectedSet.has(key));
+    const groupCell = pageIndex === 0 ? `<td class="permission-group-cell" rowspan="${group.pages.length}"><label><input type="checkbox" data-role-group="${escapeHtml(group.group)}" ${groupChecked ? "checked" : ""} /><span>${escapeHtml(group.group)}</span></label></td>` : "";
+    const pageCell = `<td class="permission-page-cell"><label><input type="checkbox" data-role-page="${escapeHtml(page.name)}" ${pageChecked ? "checked" : ""} /><span>${escapeHtml(page.name)}</span></label></td>`;
+    const actionCells = page.permissions.map((permission) => `<label class="permission-action"><input type="checkbox" name="role_permission" value="${escapeHtml(permission.key)}" ${selectedSet.has(permission.key) ? "checked" : ""} /><span>${escapeHtml(permission.label)}</span></label>`).join("");
+    return `<tr data-role-group-row="${escapeHtml(group.group)}" data-role-page-row="${escapeHtml(page.name)}">${groupCell}${pageCell}<td class="permission-actions-cell">${actionCells}</td></tr>`;
+  }));
+  renderTable("permission-matrix-table", ["歸屬", "頁面", "接口"], rows, "暫無可配置權限");
+}
+
+function renderRoles() {
+  const store = loadStore();
+  const accounts = store.subaccounts || [];
+  const rows = (store.roles || []).map((role) => {
+    const accountCount = accounts.filter((account) => accountRoleIds(account).includes(role.id)).length;
+    const permissionCount = (role.permissions || []).filter((permission) => allRolePermissionKeys.includes(permission)).length;
+    return `<tr><td><strong>${escapeHtml(role.name)}</strong><small class="table-subtext">${escapeHtml(role.id)}</small></td><td><span class="status-pill ${role.status === "enabled" ? "" : "is-disabled"}">${role.status === "enabled" ? "已啟用" : "已停用"}</span></td><td>${permissionCount} 項</td><td>${accountCount} 個</td><td>${escapeHtml(role.updated_at || "未修改")}</td><td><div class="row-actions"><button type="button" data-edit-role="${escapeHtml(role.id)}">編輯權限</button><button class="secondary" type="button" data-toggle-role="${escapeHtml(role.id)}">${role.status === "enabled" ? "停用" : "啟用"}</button><button class="danger" type="button" data-delete-role="${escapeHtml(role.id)}">刪除</button></div></td></tr>`;
+  });
+  renderTable("role-table", ["角色名稱", "狀態", "權限數", "綁定子賬號", "最近修改", "操作"], rows, "暫無角色");
+}
+
+function renderSubaccountRoleSelect(account = null) {
+  const select = document.getElementById("subaccount-role-select");
+  if (!select) return;
+  const roles = loadStore().roles || [];
+  const selectedIds = new Set(accountRoleIds(account));
+  if (!selectedIds.size) {
+    const defaultRole = roles.find((role) => role.status === "enabled") || roles[0];
+    if (defaultRole) selectedIds.add(defaultRole.id);
+  }
+  select.innerHTML = roles.map((role) => `<option value="${escapeHtml(role.id)}" ${selectedIds.has(role.id) ? "selected" : ""}>${escapeHtml(role.name)}${role.status === "disabled" ? "（已停用）" : ""}</option>`).join("");
+  updateSubaccountRoleSummary();
+}
+
+function updateSubaccountRoleSummary() {
+  const select = document.getElementById("subaccount-role-select");
+  const summary = document.getElementById("subaccount-role-summary");
+  if (!select || !summary) return;
+  const roles = (loadStore().roles || []).filter((role) => [...select.selectedOptions].some((option) => option.value === role.id));
+  const enabledRoles = roles.filter((role) => role.status === "enabled");
+  const permissions = new Set(enabledRoles.flatMap((role) => role.permissions || []));
+  summary.textContent = roles.length
+    ? `已選 ${roles.length} 個角色 · 繼承 ${permissions.size} 項權限${enabledRoles.length ? "" : "；所選角色均已停用，無法登入"}`
+    : "請至少選擇一個角色。";
 }
 
 function appointmentBookings(store, slotId) {
@@ -675,7 +774,7 @@ function renderAppointments() {
     const booked = appointmentBookings(store, slot.id).length;
     const overbooked = Math.max(0, booked - Number(slot.max_bookings));
     const capacityText = `${booked} / ${slot.max_bookings}${overbooked ? `（超額 ${overbooked}）` : ""}`;
-    return `<tr><td><input class="appointment-slot-check" type="checkbox" value="${escapeHtml(slot.id)}" aria-label="選擇 ${escapeHtml(appointmentSlotTime(slot))}" ${appointmentSelection.has(slot.id) ? "checked" : ""} /></td><td>${escapeHtml(orderLabel(slot.order_id))}</td><td>${escapeHtml(slot.address)}</td><td>${escapeHtml(appointmentSlotTime(slot))}</td><td><strong class="${overbooked ? "capacity-over" : ""}">${capacityText}</strong></td><td>${slot.allow_overbook ? '<span class="status-pill is-pending">支持</span>' : "不支持"}</td><td><span class="status-pill ${slot.status === "enabled" ? "" : "is-disabled"}">${slot.status === "enabled" ? "開放中" : "已暫停"}</span></td><td><div class="row-actions"><button type="button" data-view-appointment-slot="${slot.id}">預約明細</button><button type="button" data-edit-appointment-slot="${slot.id}">編輯</button><button class="danger" type="button" data-delete-appointment-slot="${slot.id}">刪除</button></div></td></tr>`;
+    return `<tr><td><input class="appointment-slot-check" type="checkbox" value="${escapeHtml(slot.id)}" aria-label="選擇 ${escapeHtml(appointmentSlotTime(slot))}" ${appointmentSelection.has(slot.id) ? "checked" : ""} /></td><td>${escapeHtml(orderLabel(slot.order_id))}</td><td>${escapeHtml(slot.address)}</td><td>${escapeHtml(appointmentSlotTime(slot))}</td><td><strong class="${overbooked ? "capacity-over" : ""}">${capacityText}</strong></td><td>${slot.allow_overbook ? '<span class="status-pill is-pending">支持</span>' : "不支持"}</td><td><span class="status-pill ${slot.status === "enabled" ? "" : "is-disabled"}">${slot.status === "enabled" ? "開放中" : "已暫停"}</span></td><td><div class="row-actions"><button type="button" data-view-appointment-slot="${slot.id}">預約明細</button>${isOwner() || hasPermission("appointment_manage") ? `<button type="button" data-edit-appointment-slot="${slot.id}">編輯</button><button class="danger" type="button" data-delete-appointment-slot="${slot.id}">刪除</button>` : ""}</div></td></tr>`;
   });
   renderTable("appointment-slot-table", [`<label class="table-check-all"><input id="appointment-check-all" type="checkbox" aria-label="勾選全部時段" ${slots.length ? "" : "disabled"} /><span>選擇</span></label>`, "對應訂單", "預約地址", "服務時間", "已預約 / 最大值", "超額預約", "狀態", "操作"], rows, "暫無預約時段");
   updateAppointmentSelection(slots);
@@ -710,6 +809,7 @@ function openAppointmentDetails(slotId) {
 }
 
 function exportAppointmentDetails() {
+  if (!hasPermission("appointment_export")) return;
   const store = loadStore();
   const selectedSlots = (store.appointmentSlots || [])
     .filter((slot) => appointmentSelection.has(slot.id))
@@ -743,11 +843,23 @@ function openSubaccountEditor(account = null) {
   form.elements.password.value = "";
   form.elements.password.required = !account;
   form.elements.status.value = account?.status || "enabled";
-  [...form.querySelectorAll('input[name="permission"]')].forEach((input) => { input.checked = account ? (account.permissions || []).includes(input.value) : ["employee_view", "measurement_followup"].includes(input.value); });
+  renderSubaccountRoleSelect(account);
   document.getElementById("subaccount-dialog-title").textContent = account ? "編輯子賬號" : "新增子賬號";
   document.getElementById("subaccount-password-tip").textContent = account ? "留空表示不修改密碼" : "至少 6 位；原型僅保存哈希值";
   document.getElementById("subaccount-form-error").hidden = true;
   document.getElementById("subaccount-dialog").showModal();
+}
+
+function openRoleEditor(role = null) {
+  const form = document.getElementById("role-form");
+  form.reset();
+  form.elements.id.value = role?.id || "";
+  form.elements.name.value = role?.name || "";
+  form.querySelectorAll('input[name="status"]').forEach((input) => { input.checked = input.value === (role?.status || "enabled"); });
+  renderRolePermissionMatrix(role?.permissions || []);
+  document.getElementById("role-dialog-title").textContent = role ? "編輯角色權限" : "新增角色";
+  document.getElementById("role-form-error").hidden = true;
+  document.getElementById("role-dialog").showModal();
 }
 
 function openFollowupEditor(measurementId) {
@@ -770,15 +882,19 @@ function renderAll() {
   if (departmentTable) renderTable("department-table", ["部門", "操作"], (loadStore().departments || []).map((department) => `<tr><td>${escapeHtml(department)}</td><td><button class="danger" type="button" data-delete-department="${escapeHtml(department)}">刪除</button></td></tr>`));
   renderRecords("男");
   renderRecords("女");
+  if (isOwner() || hasPermission("tailor_view")) renderTailors();
+  else document.getElementById("tailor-table").innerHTML = "";
+  if (isOwner() || hasPermission("order_view")) renderOrders();
+  else document.getElementById("order-table").innerHTML = "";
+  if (isOwner() || hasPermission("appointment_view")) renderAppointments();
+  else document.getElementById("appointment-slot-table").innerHTML = "";
   if (isOwner()) {
-    renderTailors();
-    renderOrders();
     renderAfterSales();
-    renderAppointments();
     renderSignatureDetails();
     renderSubaccounts();
+    renderRoles();
   } else {
-    ["tailor-table", "order-table", "after-sale-table", "appointment-slot-table", "signature-table", "subaccount-table"].forEach((id) => { document.getElementById(id).innerHTML = ""; });
+    ["after-sale-table", "signature-table", "subaccount-table", "role-table"].forEach((id) => { document.getElementById(id).innerHTML = ""; });
   }
   if (hasPermission("after_sales")) renderAfterSales();
   applyAccessPolicy();
@@ -1608,6 +1724,12 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
       error.hidden = false;
       return;
     }
+    const accountRoles = rolesForAccount(account, store);
+    if (accountRoleIds(account).length && !accountRoles.some((role) => role.status === "enabled")) {
+      error.textContent = "所屬角色已停用，請聯絡系統管理員。";
+      error.hidden = false;
+      return;
+    }
     if (await hashPassword(data.password) !== account.password_hash) {
       error.textContent = "登入賬號或密碼不正確。";
       error.hidden = false;
@@ -1615,7 +1737,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
     }
     account.last_login_at = nowText();
     saveStore(store);
-    currentUser = { id: account.id, name: account.name, username: account.username, role: "subaccount", permissions: [...(account.permissions || [])] };
+    currentUser = { id: account.id, name: account.name, username: account.username, role: "subaccount", role_ids: accountRoleIds(account), role_id: accountRoleIds(account)[0] || "", permissions: [...(account.permissions || [])] };
   } else {
     currentUser = ownerSession(data.username.trim());
   }
@@ -1624,7 +1746,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
   document.getElementById("login-view").hidden = true;
   document.getElementById("admin-shell").hidden = false;
   event.currentTarget.reset();
-  switchView(isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : "records-male"));
+  switchView(isOwner() ? "dashboard" : (hasPermission("employee_view") ? "employees" : hasPermission("after_sales") ? "after-sales" : hasPermission("record_view_male") ? "records-male" : "dashboard"));
   renderAll();
 });
 
@@ -1882,6 +2004,8 @@ document.getElementById("import-employees").addEventListener("click", importEmpl
 document.getElementById("import-measurements").addEventListener("click", importMeasurements);
 document.getElementById("export-measurement-template").addEventListener("click", exportMeasurementTemplate);
 document.getElementById("open-subaccount-editor").addEventListener("click", () => openSubaccountEditor());
+document.getElementById("open-role-editor").addEventListener("click", () => openRoleEditor());
+document.getElementById("subaccount-role-select").addEventListener("change", updateSubaccountRoleSummary);
 document.getElementById("subaccount-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -1891,9 +2015,13 @@ document.getElementById("subaccount-form").addEventListener("submit", async (eve
   const error = document.getElementById("subaccount-form-error");
   const username = String(data.get("username") || "").trim();
   const password = String(data.get("password") || "");
+  const roleIds = [...new Set(data.getAll("role_ids").filter(Boolean))];
+  const roles = (store.roles || []).filter((item) => roleIds.includes(item.id));
+  const enabledRoles = roles.filter((role) => role.status === "enabled");
+  const inheritedPermissions = [...new Set(enabledRoles.flatMap((role) => role.permissions || []))];
   const duplicate = (store.subaccounts || []).some((account) => account.id !== data.get("id") && account.username.toLowerCase() === username.toLowerCase());
-  if (duplicate || (!existing && password.length < 6) || (existing && password && password.length < 6)) {
-    error.textContent = duplicate ? "登入賬號已存在，請更換。" : "登入密碼至少需要 6 位。";
+  if (duplicate || !roles.length || !enabledRoles.length || (!existing && password.length < 6) || (existing && password && password.length < 6)) {
+    error.textContent = duplicate ? "登入賬號已存在，請更換。" : !roles.length ? "請至少選擇一個有效角色。" : !enabledRoles.length ? "所選角色均已停用，請至少保留一個啟用角色。" : "登入密碼至少需要 6 位。";
     error.hidden = false;
     return;
   }
@@ -1903,7 +2031,10 @@ document.getElementById("subaccount-form").addEventListener("submit", async (eve
     username,
     password_hash: password ? await hashPassword(password) : existing?.password_hash,
     status: data.get("status"),
-    permissions: data.getAll("permission"),
+    role_ids: roleIds,
+    role_id: roleIds[0] || "",
+    // Keep the old field as a fallback for accounts opened by an older build.
+    permissions: inheritedPermissions,
     last_login_at: existing?.last_login_at || "",
   };
   store.subaccounts ||= [];
@@ -1913,6 +2044,60 @@ document.getElementById("subaccount-form").addEventListener("submit", async (eve
   document.getElementById("subaccount-dialog").close();
   renderAll();
   showToast("子賬號已保存，可使用新賬號登入。");
+});
+document.getElementById("role-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const store = loadStore();
+  const existing = (store.roles || []).find((role) => role.id === data.get("id"));
+  const name = String(data.get("name") || "").trim();
+  const duplicate = (store.roles || []).some((role) => role.id !== data.get("id") && role.name.toLowerCase() === name.toLowerCase());
+  const permissions = [...new Set(data.getAll("role_permission"))];
+  const error = document.getElementById("role-form-error");
+  if (duplicate) {
+    error.textContent = "角色名稱已存在，請更換。";
+    error.hidden = false;
+    return;
+  }
+  if (!permissions.length) {
+    error.textContent = "請至少選擇一項接口權限。";
+    error.hidden = false;
+    return;
+  }
+  const role = { id: existing?.id || uid("ROLE"), name, status: data.get("status") === "disabled" ? "disabled" : "enabled", permissions, updated_at: nowText() };
+  store.roles ||= [];
+  if (existing) store.roles[store.roles.findIndex((item) => item.id === existing.id)] = role;
+  else store.roles.push(role);
+  saveStore(store);
+  document.getElementById("role-dialog").close();
+  renderAll();
+  showToast("角色權限已保存。");
+});
+document.getElementById("role-select-all").addEventListener("click", () => {
+  document.querySelectorAll('#permission-matrix-table input[type="checkbox"]').forEach((input) => { input.checked = true; });
+});
+document.getElementById("role-clear-all").addEventListener("click", () => {
+  document.querySelectorAll('#permission-matrix-table input[type="checkbox"]').forEach((input) => { input.checked = false; });
+});
+document.getElementById("permission-matrix-table").addEventListener("change", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || input.type !== "checkbox") return;
+  const row = input.closest("tr");
+  if (input.dataset.roleGroup) {
+    document.querySelectorAll(`[data-role-group-row="${CSS.escape(input.dataset.roleGroup)}"] input[type="checkbox"]`).forEach((item) => { item.checked = input.checked; });
+  } else if (input.dataset.rolePage) {
+    row?.querySelectorAll('input[name="role_permission"]').forEach((item) => { item.checked = input.checked; });
+  }
+  document.querySelectorAll("[data-role-page]").forEach((pageInput) => {
+    const pageRow = pageInput.closest("tr");
+    const actions = [...(pageRow?.querySelectorAll('input[name="role_permission"]') || [])];
+    pageInput.checked = actions.length > 0 && actions.every((item) => item.checked);
+  });
+  document.querySelectorAll("[data-role-group]").forEach((groupInput) => {
+    const groupRows = [...document.querySelectorAll(`[data-role-group-row="${CSS.escape(groupInput.dataset.roleGroup)}"]` )];
+    groupInput.checked = groupRows.length > 0 && groupRows.every((groupRow) => [...groupRow.querySelectorAll('input[name="role_permission"]')].every((item) => item.checked));
+  });
 });
 document.getElementById("followup-form").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -2084,6 +2269,7 @@ document.body.addEventListener("click", (event) => {
   if (button.hasAttribute("data-close-archive")) document.getElementById("archive-dialog").close();
   if (button.hasAttribute("data-close-record-edit")) document.getElementById("record-edit-dialog").close();
   if (button.hasAttribute("data-close-subaccount")) document.getElementById("subaccount-dialog").close();
+  if (button.hasAttribute("data-close-role")) document.getElementById("role-dialog").close();
   if (button.hasAttribute("data-close-appointment-slot")) document.getElementById("appointment-slot-dialog").close();
   if (button.hasAttribute("data-close-appointment-detail")) document.getElementById("appointment-detail-dialog").close();
   if (button.hasAttribute("data-close-followup")) document.getElementById("followup-dialog").close();
@@ -2115,6 +2301,14 @@ document.body.addEventListener("click", (event) => {
 });
 
 loadStore();
+if (currentUser && !isOwner()) {
+  const sessionAccount = (loadStore().subaccounts || []).find((account) => account.id === currentUser.id);
+  const sessionRoles = sessionAccount ? rolesForAccount(sessionAccount) : [];
+  if (!sessionAccount || sessionAccount.status !== "enabled" || (accountRoleIds(sessionAccount).length > 0 && !sessionRoles.some((role) => role.status === "enabled"))) {
+    currentUser = null;
+    localStorage.removeItem(adminSessionKey);
+  }
+}
 if (currentUser) {
   document.getElementById("login-view").hidden = true;
   document.getElementById("admin-shell").hidden = false;
@@ -2194,6 +2388,30 @@ document.addEventListener("click", async event => {
     if (employee) await advanceOrderProgress([employee.id], MeasureWorkflow.progress(store, employee) + 1);
     return;
   }
+  if (button.dataset.editRole) openRoleEditor(loadStore().roles.find((role) => role.id === button.dataset.editRole));
+  if (button.dataset.toggleRole) {
+    const store = loadStore();
+    const role = (store.roles || []).find((item) => item.id === button.dataset.toggleRole);
+    if (role) {
+      role.status = role.status === "enabled" ? "disabled" : "enabled";
+      role.updated_at = nowText();
+      saveStore(store);
+      renderAll();
+      showToast(`角色已${role.status === "enabled" ? "啟用" : "停用"}。`);
+    }
+    return;
+  }
+  if (button.dataset.deleteRole) {
+    const store = loadStore();
+    const bound = (store.subaccounts || []).some((account) => accountRoleIds(account).includes(button.dataset.deleteRole));
+    if (bound) return showToast("此角色仍有子賬號綁定，請先改綁其他角色。");
+    if (!confirm("確定刪除此角色？刪除後無法恢復。")) return;
+    store.roles = (store.roles || []).filter((role) => role.id !== button.dataset.deleteRole);
+    saveStore(store);
+    renderAll();
+    showToast("角色已刪除。");
+    return;
+  }
   const id = button.dataset.receiveAfterSale || button.dataset.advanceAfterSale || button.dataset.closeSaleItem;
   if (!id || !hasPermission("after_sales")) return;
   const store = loadStore();
@@ -2237,7 +2455,7 @@ document.addEventListener("click", async event => {
   openAfterSaleDetail(id);
 });
 document.getElementById("export-after-sales").addEventListener("click", () => {
-  if (!hasPermission("after_sales")) return;
+  if (!hasPermission("after_sales_export")) return;
   renderAfterSales();
   if (!filteredAfterSales.length) return showToast("當前篩選沒有可導出的售後明細。");
   const rows = [["售後編號", "訂單", "員工編號", "姓名", "性別", "單位", "提交時間", "服裝", "申請數量", "簽收數量", "修改要求", "申請備註", "進度", "簽收人", "簽收時間", "簽收備註", "服裝狀態", "關閉原因", "關閉操作人", "待送廠數量"]];
