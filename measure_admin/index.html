@@ -30,23 +30,24 @@
         <div class="brand">
           <div class="brand-mark">MC</div>
           <div>
-            <strong>量體管理後台</strong>
-            <span>PC Admin</span>
+            <strong>澳服服裝訂製系統</strong>
+            <span>PC Admin 後台</span>
           </div>
         </div>
         <nav class="nav">
+          <span class="nav-section">導航</span>
           <button class="is-active" type="button" data-view="dashboard" data-permission="dashboard_view">總覽</button>
-          <button type="button" data-view="tailors" data-permission="tailor_view">裁縫師管理</button>
-          <button type="button" data-view="orders" data-permission="order_view">訂單管理</button>
-          <button type="button" data-view="employees" data-permission="employee_view">員工管理</button>
+          <button type="button" data-view="orders" data-permission="order_view">訂單列表</button>
           <button type="button" data-view="after-sales" data-permission="after_sales">售後管理</button>
-          <button type="button" data-view="alterations" data-permission="alteration_view">改衣管理</button>
+          <button type="button" data-view="products" data-owner-only>產品配置</button>
+          <button type="button" data-view="patterns" data-owner-only>服裝版型</button>
           <button type="button" data-view="appointments" data-permission="appointment_view">預約管理</button>
-          <button type="button" data-view="records-male" data-permission="record_view_male">男士量體記錄</button>
+          <button type="button" data-view="employees" data-permission="employee_view">顧客列表</button>
+          <button type="button" data-view="records-male" data-permission="record_view_male">量體記錄</button>
+          <button type="button" data-view="tailors" data-permission="tailor_view">裁縫師管理</button>
+          <button type="button" data-view="alterations" data-permission="alteration_view">改衣管理</button>
           <button type="button" data-view="records-female" data-permission="record_view_female">女士量體記錄</button>
           <span class="nav-section" data-owner-only>系統配置</span>
-          <button class="nav-child" type="button" data-view="patterns" data-owner-only>衣服版型管理</button>
-          <button class="nav-child" type="button" data-view="products" data-owner-only>產品配置</button>
           <button class="nav-child" type="button" data-view="subaccounts" data-owner-only>子賬號管理</button>
           <button class="nav-child" type="button" data-view="roles" data-owner-only>角色權限管理</button>
           <button class="nav-child" type="button" data-view="departments" data-owner-only>部門管理</button>
@@ -57,7 +58,7 @@
       <section class="content">
         <header class="topbar">
           <div>
-            <p>MC SPORTSWEAR &amp; UNIFORM</p>
+            <p>分批驗收 · 送廠 · 派送</p>
             <h2 id="view-title">總覽</h2>
           </div>
           <div class="current-user" id="current-user" hidden><strong id="current-user-name"></strong><span id="current-user-role"></span></div>
