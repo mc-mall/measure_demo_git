@@ -811,13 +811,29 @@ function updateAlterationSelection() {
   }
 }
 
+function alterationBarcodePattern(value) {
+  let pattern = "101";
+  for (const char of String(value || "")) {
+    const bits = char.charCodeAt(0).toString(2).padStart(8, "0");
+    pattern += bits.split("").map(bit => bit === "1" ? "11" : "0").join("") + "0";
+  }
+  return `${pattern}101`;
+}
+
 function printAlterationBarcodes() {
   const tasks = (loadStore().alterationTasks || []).filter(task => alterationSelection.has(task.id));
   const labels = tasks.flatMap(task => (task.items || []).map(item => ({ task, item })));
   if (!labels.length) return showToast("请先选择要打印的改衣任务。");
   const popup = window.open("", "alteration-barcode-print", "width=900,height=700");
   if (!popup) return showToast("浏览器阻止了打印预览窗口，请允许弹窗后重试。");
-  popup.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>改衣条码打印</title><style>@page{size:auto;margin:10mm}body{font:14px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;color:#111}.toolbar{padding:12px 0;text-align:right}.labels{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.label{border:1px dashed #555;padding:12px;min-height:118px;break-inside:avoid}.label strong{display:block;font-size:16px}.label small{display:block;margin-top:5px;color:#555}.barcode{font-family:monospace;letter-spacing:2px;font-size:18px;margin-top:10px;padding:7px;background:#f3f3f3}@media print{.toolbar{display:none}}</style></head><body><div class="toolbar"><button onclick="window.print()">打印</button></div><div class="labels">${labels.map(({ task, item }) => `<div class="label"><strong>${escapeHtml(item.garment_name)} · 改衣</strong><small>任务：${escapeHtml(task.id)}｜员工：${escapeHtml(task.employee_id)} ${escapeHtml(task.employee_name)}</small><small>修改：${escapeHtml(item.alteration)}</small><div class="barcode">${escapeHtml(item.barcode)}</div><small>SKU：${escapeHtml(item.sku_id)}｜数量：1 件</small></div>`).join("")}</div></body></html>`);
+  const labelMarkup = labels.map(({ task, item }) => {
+    const location = task.store_name || task.employee_unit || "门市";
+    const employee = [task.employee_id, task.employee_name].filter(Boolean).join(" ");
+    const pattern = alterationBarcodePattern(item.barcode);
+    const bars = [...pattern].map(bit => `<i class="${bit === "1" ? "is-dark" : ""}"></i>`).join("");
+    return `<article class="label"><div class="label-head"><span>${escapeHtml(location)}</span><strong>${escapeHtml(employee)}</strong></div><div class="label-change"><strong>${escapeHtml(item.garment_name)}：</strong>${escapeHtml(item.alteration)}</div><div class="barcode"><div class="barcode-bars" aria-label="条码 ${escapeHtml(item.barcode)}">${bars}</div><div class="barcode-value">${escapeHtml(item.barcode)}</div></div><div class="label-foot"><span>任务 ${escapeHtml(task.id)}</span><span>${escapeHtml(item.sku_id || "")} · 1 件</span></div></article>`;
+  }).join("");
+  popup.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>改衣条码打印</title><style>@page{size:auto;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#111;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif}.toolbar{padding:12px 0;text-align:right}.toolbar button{border:1px solid #c9d1e0;border-radius:6px;padding:7px 15px;background:#f4f6fa;color:#24324b;font:600 14px inherit;cursor:pointer}.labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10mm 8mm}.label{min-height:58mm;border:1px solid #777;padding:6mm 7mm 4mm;break-inside:avoid;background:#fff}.label-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:15px;line-height:1.25}.label-head span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.label-head strong{flex:0 0 auto;font-weight:500;white-space:nowrap}.label-change{min-height:1.4em;margin-top:5mm;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;line-height:1.4}.label-change strong{font-weight:500}.barcode{margin:5mm auto 0;text-align:center}.barcode-bars{display:flex;width:82%;height:24mm;margin:0 auto;align-items:stretch;overflow:hidden}.barcode-bars i{display:block;flex:1 1 1px;min-width:1px;background:#fff}.barcode-bars i.is-dark{background:#111}.barcode-value{margin-top:1mm;font:700 18px/1.1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;white-space:nowrap}.label-foot{display:flex;justify-content:space-between;gap:10px;margin-top:3mm;color:#656b75;font-size:10px;line-height:1.2}.label-foot span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@media print{.toolbar{display:none}.labels{gap:8mm 6mm}}</style></head><body><div class="toolbar"><button onclick="window.print()">打印</button></div><main class="labels">${labelMarkup}</main></body></html>`);
   popup.document.close();
   popup.focus();
   popup.setTimeout(() => popup.print(), 300);
