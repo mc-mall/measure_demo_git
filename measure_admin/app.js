@@ -800,12 +800,8 @@ function updateAlterationSelection() {
   });
   const count = alterationSelection.size;
   const countNode = document.getElementById("alteration-selected-count");
-  const assignButton = document.getElementById("open-alteration-assign");
-  const returnButton = document.getElementById("open-alteration-return");
   const printButton = document.getElementById("print-alteration-barcodes");
   if (countNode) countNode.textContent = `已选 ${count} 个任务`;
-  if (assignButton) assignButton.disabled = count === 0;
-  if (returnButton) returnButton.disabled = count === 0;
   if (printButton) printButton.disabled = count === 0;
   const pageChecks = [...document.querySelectorAll(".alteration-row-check")];
   const pageCheck = document.getElementById("alteration-check-page");
