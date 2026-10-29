@@ -40,6 +40,7 @@
           <button type="button" data-view="orders" data-permission="order_view">訂單管理</button>
           <button type="button" data-view="employees" data-permission="employee_view">員工管理</button>
           <button type="button" data-view="after-sales" data-permission="after_sales">售後管理</button>
+          <button type="button" data-view="alterations" data-permission="alteration_view">改衣管理</button>
           <button type="button" data-view="appointments" data-permission="appointment_view">預約管理</button>
           <button type="button" data-view="records-male" data-permission="record_view_male">男士量體記錄</button>
           <button type="button" data-view="records-female" data-permission="record_view_female">女士量體記錄</button>
@@ -134,14 +135,14 @@
 
         <section class="view" id="view-after-sales">
           <div class="panel list-toolbar">
-            <div><h3>售後管理</h3><p>員工提交售後 → 門市現場簽收 → 工廠處理 → 完成派送。</p></div>
-            <div class="row-actions"><button type="button" id="open-after-status-import">導入更新狀態</button><button type="button" id="export-after-sales" data-permission="after_sales_export">導出篩選明細</button></div>
+            <div><h3>售後管理</h3><p>员工提交售后或门店后台新建 → 门店签收 → 生成改衣任务 → 工厂处理 → 完成派送。</p></div>
+            <div class="row-actions"><button type="button" id="open-admin-after-sale" data-permission="after_sales">后台新建售后单</button><button type="button" id="open-after-status-import">導入更新狀態</button><button type="button" id="export-after-sales" data-permission="after_sales_export">導出篩選明細</button></div>
           </div>
           <div class="panel after-sale-filters">
             <label><span>員工 / 登記編號</span><input id="after-sale-filter-keyword" type="search" placeholder="員工編號、姓名或登記編號" /></label>
             <label><span>單位名稱</span><input id="after-sale-filter-unit" type="search" placeholder="搜尋單位名稱" /></label>
             <div class="after-sale-date-filter"><span>登記時間</span><div><input id="after-sale-filter-start" type="date" aria-label="登記開始日期" /><em>至</em><input id="after-sale-filter-end" type="date" aria-label="登記結束日期" /></div></div>
-            <label><span>需求狀態</span><select id="after-sale-filter-status"><option value="">全部狀態</option><option>提交售後</option><option>門市收貨</option><option>已下單到工廠</option><option>工廠交付，待派送</option><option>完成派送</option><option>已關閉</option></select></label>
+            <label><span>需求狀態</span><select id="after-sale-filter-status"><option value="">全部狀態</option><option>提交售後</option><option>已簽收</option><option>門市收貨</option><option>已下單到工廠</option><option>工廠交付，待派送</option><option>完成派送</option><option>已關閉</option></select></label>
             <button class="secondary" type="button" id="clear-after-sale-filters">清除篩選</button>
           </div>
           <div class="panel after-sale-batch-bar">
@@ -151,6 +152,23 @@
           </div>
           <div class="panel table-wrap"><table id="after-sale-table"></table></div>
           <div class="panel pagination" id="after-sale-pagination"></div>
+        </section>
+
+        <section class="view" id="view-alterations">
+          <div class="panel list-toolbar">
+            <div><h3>改衣管理</h3><p>一件一码管理改衣任务，记录师傅分配、逐次交接、数量差异、收费、异常和员工中止。</p></div>
+            <div class="row-actions"><span id="alteration-selected-count" class="table-subtext">已选 0 个任务</span><button type="button" id="open-alteration-assign" data-permission="alteration_process">分配师傅</button><button type="button" id="open-alteration-return" data-permission="alteration_process">师傅交回门市</button><button type="button" id="print-alteration-barcodes" data-permission="alteration_process" disabled>批量打印条码</button><button type="button" id="open-alteration-task" data-permission="alteration_view">新建改衣任务</button><button class="secondary" type="button" id="export-alterations" data-permission="alteration_export">导出任务</button></div>
+          </div>
+          <div class="panel alteration-summary" id="alteration-summary"></div>
+          <div class="panel alteration-filters">
+            <label><span>任务 / 员工 / 師傅</span><input id="alteration-filter-keyword" type="search" placeholder="编号、员工、订单或师傅" /></label>
+            <label><span>任务类型</span><select id="alteration-filter-type"><option value="">全部类型</option><option>普通改衣</option><option>师傅改错返工</option><option>收费改衣</option></select></label>
+            <label><span>状态</span><select id="alteration-filter-status"><option value="">全部状态</option><option>门市已收衣</option><option>待分配</option><option>改衣中</option><option>师傅已交回</option><option>门市验收</option><option>待派送</option><option>支行代签</option><option>已完成</option><option>员工中止</option><option>待处理异常</option></select></label>
+            <label class="alteration-check-filter"><input id="alteration-filter-anomaly" type="checkbox" /> <span>只看待处理异常</span></label>
+            <button class="secondary" type="button" id="clear-alteration-filters">清除筛选</button>
+          </div>
+          <div class="panel table-wrap"><table id="alteration-table"></table></div>
+          <div class="panel pagination" id="alteration-pagination"></div>
         </section>
 
         <section class="view" id="view-appointments">
@@ -402,6 +420,67 @@
     <dialog class="after-sale-detail-dialog" id="after-sale-detail-dialog">
       <div class="dialog-head"><div><h3 id="after-sale-detail-title">售後詳情</h3><p id="after-sale-detail-subtitle"></p></div><button class="secondary" type="button" data-close-after-sale-detail>關閉</button></div>
       <div id="after-sale-detail-content"></div>
+    </dialog>
+    <dialog class="after-sale-create-dialog" id="after-sale-create-dialog">
+      <form id="admin-after-sale-form">
+        <div class="dialog-head"><div><h3>后台新建售后单</h3><p>选择订单，搜索员工号，勾选实际售后数量并填写每项售后要求；门店提交后自动记为“已签收”。</p></div><button class="secondary" type="button" data-close-after-sale-create>取消</button></div>
+        <div class="dialog-form-grid">
+          <label><span>订单</span><select id="admin-after-sale-order" name="order_id" required></select></label>
+          <label><span>搜索员工号</span><input id="admin-after-sale-employee-search" type="search" placeholder="输入员工编号后选择" autocomplete="off" /></label>
+        </div>
+        <div class="after-sale-admin-employee-results" id="admin-after-sale-employee-results"></div>
+        <div class="after-sale-admin-selected" id="admin-after-sale-selected" hidden></div>
+        <div class="after-sale-admin-items" id="admin-after-sale-items"><p class="dialog-tip">请先选择员工，系统会带出该员工在此订单下可售后的服装。</p></div>
+        <label class="after-sale-demand-field"><span>整单补充说明（可选）</span><textarea name="remark" rows="2" maxlength="300" placeholder="例如：员工现场说明，周五前送回支行"></textarea></label>
+        <p class="form-error" id="admin-after-sale-error" hidden></p>
+        <div class="dialog-actions"><button type="submit">确认提交并标记已签收</button></div>
+      </form>
+    </dialog>
+    <dialog class="alteration-detail-dialog" id="alteration-detail-dialog">
+      <div class="dialog-head"><div><h3 id="alteration-detail-title">改衣任務</h3><p id="alteration-detail-subtitle"></p></div><button class="secondary" type="button" data-close-alteration-detail>關閉</button></div>
+      <div id="alteration-detail-content"></div>
+    </dialog>
+    <dialog class="entity-dialog alteration-task-dialog" id="alteration-task-dialog">
+      <form id="alteration-task-form">
+        <div class="dialog-head"><div><h3>新建改衣任務</h3><p>门市按实际收到数量建单；系统为每件服装生成内部编号和条码。</p></div><button class="secondary" type="button" data-close-alteration-task>取消</button></div>
+        <div class="dialog-form-grid">
+          <label><span>员工</span><select name="employee_id" required></select></label>
+          <label><span>订单</span><select name="order_id" required></select></label>
+          <label><span>门市</span><input name="store_name" required placeholder="例如：澳門門市" /></label>
+          <label><span>任务类型</span><select name="type"><option>普通改衣</option><option>师傅改错返工</option><option>收费改衣</option></select></label>
+          <label><span>SKU</span><input name="sku_id" required placeholder="现有订单 SKU" /></label>
+          <label><span>服装类型</span><input name="garment_name" required placeholder="例如：西裤" /></label>
+          <label><span>实际收到数量</span><input name="quantity" type="number" min="1" step="1" value="1" required /></label>
+          <label><span>手工费金额（可选）</span><input name="fee_amount" inputmode="decimal" placeholder="待确认可留空" /></label>
+        </div>
+        <label class="alteration-fee-check"><input name="requires_fee" type="checkbox" /> <span>标记为收费改衣（门市现场收款）</span></label>
+        <label class="alteration-demand-field"><span>修改内容</span><textarea name="alteration" rows="3" required placeholder="例如：裤长缩短 2cm；请保留原有版型"></textarea></label>
+        <div class="dialog-tip">免费次数按 员工 + 订单 + SKU 计算；中止和师傅改错返工的次数规则需按需求确认后由管理员处理。</div>
+        <div class="dialog-actions"><button type="submit">保存改衣任务</button></div>
+      </form>
+    </dialog>
+    <dialog class="alteration-assign-dialog" id="alteration-assign-dialog">
+      <form id="alteration-assign-form">
+        <div class="dialog-head"><div><h3>分配师傅</h3><p>先选择师傅，再用扫码枪扫描改衣任务条码；每扫描一件增加一件。</p></div><button class="secondary" type="button" data-close-alteration-assign>取消</button></div>
+        <div class="dialog-form-grid alteration-assign-fields">
+          <label><span>师傅</span><select id="alteration-assign-tailor" name="tailor_id" required></select></label>
+          <label><span>扫码枪输入</span><input id="alteration-barcode-scan" autocomplete="off" placeholder="扫描条码后自动加入" /></label>
+        </div>
+        <p class="dialog-tip">只接受状态为“门市已收衣 / 待分配”的任务；重复扫描不会重复加入，已分配任务不能再次分配。</p>
+        <div class="table-wrap"><table id="alteration-assignment-scan-table"></table></div>
+        <p class="form-error" id="alteration-assign-error" hidden></p>
+        <div class="dialog-actions"><button type="submit">确认分配已扫描任务</button></div>
+      </form>
+    </dialog>
+    <dialog class="alteration-assign-dialog" id="alteration-return-dialog">
+      <form id="alteration-return-form">
+        <div class="dialog-head"><div><h3>师傅交回门市</h3><p>用扫码枪扫描师傅交回的任务条码；每扫描一件增加一件，签收后默认验收通过并进入待派送。</p></div><button class="secondary" type="button" data-close-alteration-return>取消</button></div>
+        <label><span>扫码枪输入</span><input id="alteration-return-scan" autocomplete="off" placeholder="扫描条码后自动加入" /></label>
+        <p class="dialog-tip">只接受状态为“改衣中”的任务；重复扫描不会重复加入。</p>
+        <div class="table-wrap"><table id="alteration-return-scan-table"></table></div>
+        <p class="form-error" id="alteration-return-error" hidden></p>
+        <div class="dialog-actions"><button type="submit">确认签收并默认验收</button></div>
+      </form>
     </dialog>
     <dialog class="comparison-dialog" id="comparison-dialog">
       <div class="dialog-head"><div><h3>量體對比分析</h3><p>按版本、服裝類型和字段差異條件查找需要調整的員工。</p></div><button class="secondary" type="button" data-close-comparison>關閉</button></div>

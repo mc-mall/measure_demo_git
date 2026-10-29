@@ -51,7 +51,7 @@ function seedStore() {
         id: "ROLE_AFTER_SALES",
         name: "售後運營",
         status: "enabled",
-        permissions: ["dashboard_view", "employee_view", "after_sales"],
+        permissions: ["dashboard_view", "employee_view", "after_sales", "alteration_view", "alteration_process", "alteration_anomaly", "alteration_export"],
         updated_at: "",
       },
     ],
@@ -62,6 +62,18 @@ function seedStore() {
     ],
     appointments: [
       { id: "APB001", slot_id: "APS001", employee_id: "EMP001", employee_name: "陳嘉儀", employee_unit: "澳門分部", order_id: "ORDER001", status: "booked", created_at: new Date().toLocaleString("sv-SE") },
+    ],
+    alterationTasks: [
+      {
+        id: "ALT20261028001", employee_id: "EMP002", employee_name: "李國輝", employee_gender: "男", employee_unit: "香港分部", order_id: "ORDER001", store_name: "香港門市", type: "普通改衣", status: "待分配", location: "香港門市", tailor_org: "", tailor_name: "", requires_fee: false, fee_amount: "", paid: false, created_by: "demo", created_at: "2026-10-28 09:20:00", updated_at: "2026-10-28 09:20:00",
+        items: [{ id: "ALT20261028001-01", barcode: "ALT-20261028-001-01", sku_id: "G002", garment_name: "西褲", quantity: 1, alteration: "褲長縮短 2cm", status: "待分配", location: "香港門市", completed: false, anomaly: false }],
+        handovers: [{ id: "HOV20261028001", type: "門市收衣", from: "李國輝", to: "香港門市", operator: "demo", handover_at: "2026-10-28 09:20:00", location: "香港門市", expected_quantity: 1, actual_quantity: 1, barcodes: ["ALT-20261028-001-01"], remark: "現場清點完成" }], anomalies: [], history: [{ action: "建立改衣任務", operator: "demo", at: "2026-10-28 09:20:00" }],
+      },
+      {
+        id: "ALT20261027001", employee_id: "EMP001", employee_name: "陳嘉儀", employee_gender: "女", employee_unit: "澳門分部", order_id: "ORDER001", store_name: "澳門門市", type: "收費改衣", status: "改衣中", location: "澳門加工點", tailor_org: "第三方加工廠", tailor_name: "林師傅", requires_fee: true, fee_amount: "80", paid: true, paid_by: "store-operator", paid_at: "2026-10-27 15:10:00", created_by: "store-operator", created_at: "2026-10-27 14:40:00", updated_at: "2026-10-27 16:00:00",
+        items: [{ id: "ALT20261027001-01", barcode: "ALT-20261027-001-01", sku_id: "G004", garment_name: "半裙", quantity: 1, alteration: "腰圍收窄 1cm", status: "改衣中", location: "澳門加工點", completed: false, anomaly: false }],
+        handovers: [{ id: "HOV20261027001", type: "門市收衣", from: "陳嘉儀", to: "澳門門市", operator: "store-operator", handover_at: "2026-10-27 14:40:00", location: "澳門門市", expected_quantity: 1, actual_quantity: 1, barcodes: ["ALT-20261027-001-01"], remark: "現場收衣" }, { id: "HOV20261027002", type: "交給師傅", from: "澳門門市", to: "林師傅", operator: "store-operator", handover_at: "2026-10-27 16:00:00", location: "澳門門市", expected_quantity: 1, actual_quantity: 1, barcodes: ["ALT-20261027-001-01"], remark: "師傅掃碼確認收貨" }], anomalies: [], history: [{ action: "建立改衣任務", operator: "store-operator", at: "2026-10-27 14:40:00" }, { action: "師傅確認收貨", operator: "store-operator", at: "2026-10-27 16:00:00" }],
+      },
     ],
     afterSales: [
       {
@@ -107,7 +119,7 @@ function normalize(store) {
     id: role.id || `ROLE_${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
     name: String(role.name || "未命名角色").trim(),
     status: role.status === "disabled" ? "disabled" : "enabled",
-    permissions: Array.isArray(role.permissions) ? [...new Set(role.permissions)] : [],
+    permissions: [...new Set([...(Array.isArray(role.permissions) ? role.permissions : []), ...(role.id === "ROLE_AFTER_SALES" ? ["alteration_view", "alteration_process", "alteration_anomaly", "alteration_export"] : [])])],
     updated_at: role.updated_at || "",
   }));
   store.subaccounts = (store.subaccounts || []).map(account => {
@@ -116,6 +128,16 @@ function normalize(store) {
       : (account.role_id ? [account.role_id] : []);
     return { ...account, role_ids: roleIds, role_id: roleIds[0] || "" };
   });
+  store.alterationTasks = (store.alterationTasks || []).map(task => ({
+    ...task,
+    items: Array.isArray(task.items) ? task.items : [],
+    handovers: Array.isArray(task.handovers) ? task.handovers : [],
+    anomalies: Array.isArray(task.anomalies) ? task.anomalies : [],
+    history: Array.isArray(task.history) ? task.history : [],
+    type: task.type === "员工中止后重新发起" ? "普通改衣" : (task.type || "普通改衣"),
+    status: task.status === "已分配待師傅收貨" ? "改衣中" : (task.status || "門市已收衣"),
+    location: task.location || task.store_name || "未記錄",
+  }));
   if (store.workflowVersion === 1) return store;
   const oldVersion = store.afterSaleStatusVersion;
   const map = { "已登記": after[0], "已處理": after[1], "已發回": after[4], "已完成": oldVersion === 2 ? after[4] : after[1] };

@@ -52,3 +52,16 @@ test('multiple receipts accumulate, legacy receipt remains one batch, closed gar
   sweater.closed={reason:'現場退換'};assert.equal(w.readyForFactory(r),true);
   coat.closed={reason:'現場處理'};assert.equal(w.readyForFactory(r),false);
 });
+test('alteration tasks keep one-item barcode and audit collections through normalization', () => {
+  const w = setup();
+  const store = w.read();
+  assert.ok(store.alterationTasks.length >= 2);
+  assert.ok(store.alterationTasks.every(task => task.items.length === 1 && task.items[0].quantity === 1 && task.items[0].barcode && task.items[0].id));
+  const normalized = w.normalize({afterSales: [], employees: [], alterationTasks: [{id: 'ALT1'}]});
+  assert.equal(normalized.alterationTasks[0].items.length, 0);
+  assert.equal(normalized.alterationTasks[0].handovers.length, 0);
+  assert.equal(normalized.alterationTasks[0].anomalies.length, 0);
+  assert.equal(normalized.alterationTasks[0].history.length, 0);
+  assert.equal(w.normalize({afterSales: [], employees: [], alterationTasks: [{id: 'ALT2', type: '员工中止后重新发起'}]}).alterationTasks[0].type, '普通改衣');
+  assert.equal(w.normalize({afterSales: [], employees: [], alterationTasks: [{id: 'ALT3', status: '已分配待師傅收貨'}]}).alterationTasks[0].status, '改衣中');
+});
