@@ -1043,27 +1043,54 @@ function processAlteration(taskId, action, anomalyId = "") {
 function openAlterationTaskDialog() {
   const form = document.getElementById("alteration-task-form");
   const store = loadStore();
-  form.elements.employee_id.innerHTML = accessibleEmployees(store).map(employee => `<option value="${escapeHtml(employee.employee_id)}">${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</option>`).join("");
-  form.elements.order_id.innerHTML = accessibleOrders(store).map(order => `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)} · ${escapeHtml(order.company_name)}</option>`).join("");
   form.reset();
-  form.elements.employee_id.value = accessibleEmployees(store)[0]?.employee_id || "";
+  form.elements.order_id.innerHTML = accessibleOrders(store).map(order => `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)} · ${escapeHtml(order.company_name)}</option>`).join("");
   form.elements.order_id.value = accessibleOrders(store)[0]?.order_id || "";
+  populateAlterationTaskEmployees(form, store);
+  populateAlterationTaskProducts(form, store);
   document.getElementById("alteration-task-dialog").showModal();
+}
+
+function populateAlterationTaskEmployees(form, store, selectedEmployeeId = "") {
+  const orderId = form.elements.order_id.value;
+  const employees = accessibleEmployees(store).filter(employee => employee.order_id === orderId);
+  form.elements.employee_id.innerHTML = employees.map(employee => `<option value="${escapeHtml(employee.employee_id)}">${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</option>`).join("");
+  form.elements.employee_id.value = employees.some(employee => employee.employee_id === selectedEmployeeId)
+    ? selectedEmployeeId
+    : (employees[0]?.employee_id || "");
+}
+
+function alterationTaskProducts(store, orderId, employeeId) {
+  const order = (store.orders || []).find(item => item.order_id === orderId);
+  const employee = (store.employees || []).find(item => item.employee_id === employeeId && item.order_id === orderId);
+  if (!order) return [];
+  if (employee) return MeasureWorkflow.garments(store, employee).map(item => ({ id: item.id, name: item.name }));
+  return (order.garments || []).map(item => ({ id: item.id, name: item.name }));
+}
+
+function populateAlterationTaskProducts(form, store, selectedSkuId = "") {
+  const products = alterationTaskProducts(store, form.elements.order_id.value, form.elements.employee_id.value);
+  form.elements.sku_id.innerHTML = products.map(product => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.id)} · ${escapeHtml(product.name)}</option>`).join("");
+  form.elements.sku_id.value = products.some(product => product.id === selectedSkuId)
+    ? selectedSkuId
+    : (products[0]?.id || "");
 }
 
 function submitAlterationTask(form) {
   const data = Object.fromEntries(new FormData(form));
   const store = loadStore();
-  const employee = store.employees.find(item => item.employee_id === data.employee_id);
-  if (!employee || !data.sku_id.trim() || !data.garment_name.trim() || !data.alteration.trim() || !Number.isInteger(Number(data.quantity)) || Number(data.quantity) < 1) return showToast("請完整填寫員工、SKU、服裝、數量和修改內容。");
+  const employee = store.employees.find(item => item.employee_id === data.employee_id && item.order_id === data.order_id);
+  const product = alterationTaskProducts(store, data.order_id, data.employee_id).find(item => item.id === data.sku_id);
+  if (!employee || !product || !data.alteration.trim() || !Number.isInteger(Number(data.quantity)) || Number(data.quantity) < 1) return showToast("請完整填寫订单、员工、改衣产品、数量和修改内容。");
   const createdAt = nowText();
   const id = `ALT${createdAt.replace(/[^0-9]/g, "").slice(0, 12)}${String((store.alterationTasks || []).length + 1).padStart(3, "0")}`;
   const quantity = Number(data.quantity);
+  const storeName = employee.unit_name || "門市";
   const tasks = Array.from({ length: quantity }, (_, index) => {
     const taskId = `${id}-${String(index + 1).padStart(2, "0")}`;
     const barcode = `ALT-${taskId.slice(3)}-01`;
-    const item = { id: `${taskId}-01`, barcode, sku_id: data.sku_id.trim(), garment_name: data.garment_name.trim(), quantity: 1, alteration: data.alteration.trim(), status: "門市已收衣", location: data.store_name.trim() || "未記錄門市", completed: false, anomaly: false };
-    return { id: taskId, employee_id: employee.employee_id, employee_name: employee.name, employee_gender: employee.gender, employee_unit: employee.unit_name, order_id: data.order_id || employee.order_id, store_name: data.store_name.trim() || "未記錄門市", type: data.requires_fee === "on" ? "收費改衣" : data.type, status: "門市已收衣", location: data.store_name.trim() || "未記錄門市", tailor_org: "", tailor_name: "", requires_fee: data.requires_fee === "on", fee_amount: data.fee_amount.trim(), paid: false, created_by: currentUser.username, created_at: createdAt, updated_at: createdAt, items: [item], handovers: [{ id: uid("HOV"), type: "門市收衣", from: employee.name, to: data.store_name.trim() || "門市", operator: currentUser.username, operator_id: currentUser.id, handover_at: createdAt, location: data.store_name.trim() || "門市", expected_quantity: 1, actual_quantity: 1, barcodes: [barcode], remark: "現場清點完成" }], anomalies: [], history: [{ action: "建立改衣任務", operator: currentUser.username, operator_id: currentUser.id, at: createdAt }] };
+    const item = { id: `${taskId}-01`, barcode, sku_id: product.id, garment_name: product.name, quantity: 1, alteration: data.alteration.trim(), status: "門市已收衣", location: storeName, completed: false, anomaly: false };
+    return { id: taskId, employee_id: employee.employee_id, employee_name: employee.name, employee_gender: employee.gender, employee_unit: employee.unit_name, order_id: data.order_id || employee.order_id, store_name: storeName, type: data.requires_fee === "on" ? "收費改衣" : data.type, status: "門市已收衣", location: storeName, tailor_org: "", tailor_name: "", requires_fee: data.requires_fee === "on", fee_amount: data.fee_amount.trim(), paid: false, created_by: currentUser.username, created_at: createdAt, updated_at: createdAt, items: [item], handovers: [{ id: uid("HOV"), type: "門市收衣", from: employee.name, to: storeName, operator: currentUser.username, operator_id: currentUser.id, handover_at: createdAt, location: storeName, expected_quantity: 1, actual_quantity: 1, barcodes: [barcode], remark: "現場清點完成" }], anomalies: [], history: [{ action: "建立改衣任務", operator: currentUser.username, operator_id: currentUser.id, at: createdAt }] };
   });
   store.alterationTasks ||= [];
   store.alterationTasks.unshift(...tasks);
@@ -2346,6 +2373,16 @@ document.getElementById("open-alteration-task").addEventListener("click", () => 
 document.getElementById("alteration-task-form").addEventListener("submit", event => {
   event.preventDefault();
   if (isOwner() || hasPermission("alteration_view")) submitAlterationTask(event.currentTarget);
+});
+document.getElementById("alteration-task-form").elements.order_id.addEventListener("change", event => {
+  const form = event.currentTarget.form;
+  const store = loadStore();
+  populateAlterationTaskEmployees(form, store);
+  populateAlterationTaskProducts(form, store);
+});
+document.getElementById("alteration-task-form").elements.employee_id.addEventListener("change", event => {
+  const form = event.currentTarget.form;
+  populateAlterationTaskProducts(form, loadStore());
 });
 document.getElementById("alteration-assign-form").addEventListener("submit", event => {
   event.preventDefault();
