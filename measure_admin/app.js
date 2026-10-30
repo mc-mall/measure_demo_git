@@ -811,13 +811,29 @@ function updateAlterationSelection() {
   }
 }
 
+function alterationBarcodePattern(value) {
+  let pattern = "101";
+  for (const char of String(value || "")) {
+    const bits = char.charCodeAt(0).toString(2).padStart(8, "0");
+    pattern += bits.split("").map(bit => bit === "1" ? "11" : "0").join("") + "0";
+  }
+  return `${pattern}101`;
+}
+
 function printAlterationBarcodes() {
   const tasks = (loadStore().alterationTasks || []).filter(task => alterationSelection.has(task.id));
   const labels = tasks.flatMap(task => (task.items || []).map(item => ({ task, item })));
   if (!labels.length) return showToast("请先选择要打印的改衣任务。");
   const popup = window.open("", "alteration-barcode-print", "width=900,height=700");
   if (!popup) return showToast("浏览器阻止了打印预览窗口，请允许弹窗后重试。");
-  popup.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>改衣条码打印</title><style>@page{size:auto;margin:10mm}body{font:14px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;color:#111}.toolbar{padding:12px 0;text-align:right}.labels{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.label{border:1px dashed #555;padding:12px;min-height:118px;break-inside:avoid}.label strong{display:block;font-size:16px}.label small{display:block;margin-top:5px;color:#555}.barcode{font-family:monospace;letter-spacing:2px;font-size:18px;margin-top:10px;padding:7px;background:#f3f3f3}@media print{.toolbar{display:none}}</style></head><body><div class="toolbar"><button onclick="window.print()">打印</button></div><div class="labels">${labels.map(({ task, item }) => `<div class="label"><strong>${escapeHtml(item.garment_name)} · 改衣</strong><small>任务：${escapeHtml(task.id)}｜员工：${escapeHtml(task.employee_id)} ${escapeHtml(task.employee_name)}</small><small>修改：${escapeHtml(item.alteration)}</small><div class="barcode">${escapeHtml(item.barcode)}</div><small>SKU：${escapeHtml(item.sku_id)}｜数量：1 件</small></div>`).join("")}</div></body></html>`);
+  const labelMarkup = labels.map(({ task, item }) => {
+    const location = task.store_name || task.employee_unit || "门市";
+    const employee = [task.employee_id, task.employee_name].filter(Boolean).join(" ");
+    const pattern = alterationBarcodePattern(item.barcode);
+    const bars = [...pattern].map(bit => `<i class="${bit === "1" ? "is-dark" : ""}"></i>`).join("");
+    return `<article class="label"><div class="label-head"><span>${escapeHtml(location)}</span><strong>${escapeHtml(employee)}</strong></div><div class="label-change"><strong>${escapeHtml(item.garment_name)}：</strong>${escapeHtml(item.alteration)}</div><div class="barcode"><div class="barcode-bars" aria-label="条码 ${escapeHtml(item.barcode)}">${bars}</div><div class="barcode-value">${escapeHtml(item.barcode)}</div></div><div class="label-foot"><span>任务 ${escapeHtml(task.id)}</span><span>${escapeHtml(item.sku_id || "")} · 1 件</span></div></article>`;
+  }).join("");
+  popup.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>改衣条码打印</title><style>@page{size:auto;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#111;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif}.toolbar{padding:12px 0;text-align:right}.toolbar button{border:1px solid #c9d1e0;border-radius:6px;padding:7px 15px;background:#f4f6fa;color:#24324b;font:600 14px inherit;cursor:pointer}.labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10mm 8mm}.label{min-height:58mm;border:1px solid #777;padding:6mm 7mm 4mm;break-inside:avoid;background:#fff}.label-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:15px;line-height:1.25}.label-head span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.label-head strong{flex:0 0 auto;font-weight:500;white-space:nowrap}.label-change{min-height:1.4em;margin-top:5mm;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;line-height:1.4}.label-change strong{font-weight:500}.barcode{margin:5mm auto 0;text-align:center}.barcode-bars{display:flex;width:82%;height:24mm;margin:0 auto;align-items:stretch;overflow:hidden}.barcode-bars i{display:block;flex:1 1 1px;min-width:1px;background:#fff}.barcode-bars i.is-dark{background:#111}.barcode-value{margin-top:1mm;font:700 18px/1.1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;white-space:nowrap}.label-foot{display:flex;justify-content:space-between;gap:10px;margin-top:3mm;color:#656b75;font-size:10px;line-height:1.2}.label-foot span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@media print{.toolbar{display:none}.labels{gap:8mm 6mm}}</style></head><body><div class="toolbar"><button onclick="window.print()">打印</button></div><main class="labels">${labelMarkup}</main></body></html>`);
   popup.document.close();
   popup.focus();
   popup.setTimeout(() => popup.print(), 300);
@@ -1043,27 +1059,54 @@ function processAlteration(taskId, action, anomalyId = "") {
 function openAlterationTaskDialog() {
   const form = document.getElementById("alteration-task-form");
   const store = loadStore();
-  form.elements.employee_id.innerHTML = accessibleEmployees(store).map(employee => `<option value="${escapeHtml(employee.employee_id)}">${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</option>`).join("");
-  form.elements.order_id.innerHTML = accessibleOrders(store).map(order => `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)} · ${escapeHtml(order.company_name)}</option>`).join("");
   form.reset();
-  form.elements.employee_id.value = accessibleEmployees(store)[0]?.employee_id || "";
+  form.elements.order_id.innerHTML = accessibleOrders(store).map(order => `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)} · ${escapeHtml(order.company_name)}</option>`).join("");
   form.elements.order_id.value = accessibleOrders(store)[0]?.order_id || "";
+  populateAlterationTaskEmployees(form, store);
+  populateAlterationTaskProducts(form, store);
   document.getElementById("alteration-task-dialog").showModal();
+}
+
+function populateAlterationTaskEmployees(form, store, selectedEmployeeId = "") {
+  const orderId = form.elements.order_id.value;
+  const employees = accessibleEmployees(store).filter(employee => employee.order_id === orderId);
+  form.elements.employee_id.innerHTML = employees.map(employee => `<option value="${escapeHtml(employee.employee_id)}">${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</option>`).join("");
+  form.elements.employee_id.value = employees.some(employee => employee.employee_id === selectedEmployeeId)
+    ? selectedEmployeeId
+    : (employees[0]?.employee_id || "");
+}
+
+function alterationTaskProducts(store, orderId, employeeId) {
+  const order = (store.orders || []).find(item => item.order_id === orderId);
+  const employee = (store.employees || []).find(item => item.employee_id === employeeId && item.order_id === orderId);
+  if (!order) return [];
+  if (employee) return MeasureWorkflow.garments(store, employee).map(item => ({ id: item.id, name: item.name }));
+  return (order.garments || []).map(item => ({ id: item.id, name: item.name }));
+}
+
+function populateAlterationTaskProducts(form, store, selectedSkuId = "") {
+  const products = alterationTaskProducts(store, form.elements.order_id.value, form.elements.employee_id.value);
+  form.elements.sku_id.innerHTML = products.map(product => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.id)} · ${escapeHtml(product.name)}</option>`).join("");
+  form.elements.sku_id.value = products.some(product => product.id === selectedSkuId)
+    ? selectedSkuId
+    : (products[0]?.id || "");
 }
 
 function submitAlterationTask(form) {
   const data = Object.fromEntries(new FormData(form));
   const store = loadStore();
-  const employee = store.employees.find(item => item.employee_id === data.employee_id);
-  if (!employee || !data.sku_id.trim() || !data.garment_name.trim() || !data.alteration.trim() || !Number.isInteger(Number(data.quantity)) || Number(data.quantity) < 1) return showToast("請完整填寫員工、SKU、服裝、數量和修改內容。");
+  const employee = store.employees.find(item => item.employee_id === data.employee_id && item.order_id === data.order_id);
+  const product = alterationTaskProducts(store, data.order_id, data.employee_id).find(item => item.id === data.sku_id);
+  if (!employee || !product || !data.alteration.trim() || !Number.isInteger(Number(data.quantity)) || Number(data.quantity) < 1) return showToast("請完整填寫订单、员工、改衣产品、数量和修改内容。");
   const createdAt = nowText();
   const id = `ALT${createdAt.replace(/[^0-9]/g, "").slice(0, 12)}${String((store.alterationTasks || []).length + 1).padStart(3, "0")}`;
   const quantity = Number(data.quantity);
+  const storeName = employee.unit_name || "門市";
   const tasks = Array.from({ length: quantity }, (_, index) => {
     const taskId = `${id}-${String(index + 1).padStart(2, "0")}`;
     const barcode = `ALT-${taskId.slice(3)}-01`;
-    const item = { id: `${taskId}-01`, barcode, sku_id: data.sku_id.trim(), garment_name: data.garment_name.trim(), quantity: 1, alteration: data.alteration.trim(), status: "門市已收衣", location: data.store_name.trim() || "未記錄門市", completed: false, anomaly: false };
-    return { id: taskId, employee_id: employee.employee_id, employee_name: employee.name, employee_gender: employee.gender, employee_unit: employee.unit_name, order_id: data.order_id || employee.order_id, store_name: data.store_name.trim() || "未記錄門市", type: data.requires_fee === "on" ? "收費改衣" : data.type, status: "門市已收衣", location: data.store_name.trim() || "未記錄門市", tailor_org: "", tailor_name: "", requires_fee: data.requires_fee === "on", fee_amount: data.fee_amount.trim(), paid: false, created_by: currentUser.username, created_at: createdAt, updated_at: createdAt, items: [item], handovers: [{ id: uid("HOV"), type: "門市收衣", from: employee.name, to: data.store_name.trim() || "門市", operator: currentUser.username, operator_id: currentUser.id, handover_at: createdAt, location: data.store_name.trim() || "門市", expected_quantity: 1, actual_quantity: 1, barcodes: [barcode], remark: "現場清點完成" }], anomalies: [], history: [{ action: "建立改衣任務", operator: currentUser.username, operator_id: currentUser.id, at: createdAt }] };
+    const item = { id: `${taskId}-01`, barcode, sku_id: product.id, garment_name: product.name, quantity: 1, alteration: data.alteration.trim(), status: "門市已收衣", location: storeName, completed: false, anomaly: false };
+    return { id: taskId, employee_id: employee.employee_id, employee_name: employee.name, employee_gender: employee.gender, employee_unit: employee.unit_name, order_id: data.order_id || employee.order_id, store_name: storeName, type: data.requires_fee === "on" ? "收費改衣" : data.type, status: "門市已收衣", location: storeName, tailor_org: "", tailor_name: "", requires_fee: data.requires_fee === "on", fee_amount: data.fee_amount.trim(), paid: false, created_by: currentUser.username, created_at: createdAt, updated_at: createdAt, items: [item], handovers: [{ id: uid("HOV"), type: "門市收衣", from: employee.name, to: storeName, operator: currentUser.username, operator_id: currentUser.id, handover_at: createdAt, location: storeName, expected_quantity: 1, actual_quantity: 1, barcodes: [barcode], remark: "現場清點完成" }], anomalies: [], history: [{ action: "建立改衣任務", operator: currentUser.username, operator_id: currentUser.id, at: createdAt }] };
   });
   store.alterationTasks ||= [];
   store.alterationTasks.unshift(...tasks);
@@ -2346,6 +2389,16 @@ document.getElementById("open-alteration-task").addEventListener("click", () => 
 document.getElementById("alteration-task-form").addEventListener("submit", event => {
   event.preventDefault();
   if (isOwner() || hasPermission("alteration_view")) submitAlterationTask(event.currentTarget);
+});
+document.getElementById("alteration-task-form").elements.order_id.addEventListener("change", event => {
+  const form = event.currentTarget.form;
+  const store = loadStore();
+  populateAlterationTaskEmployees(form, store);
+  populateAlterationTaskProducts(form, store);
+});
+document.getElementById("alteration-task-form").elements.employee_id.addEventListener("change", event => {
+  const form = event.currentTarget.form;
+  populateAlterationTaskProducts(form, loadStore());
 });
 document.getElementById("alteration-assign-form").addEventListener("submit", event => {
   event.preventDefault();

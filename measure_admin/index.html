@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css?v=20261028-role-permissions" />
+    <link rel="stylesheet" href="./styles.css?v=20261030-pages" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -445,18 +445,16 @@
       <form id="alteration-task-form">
         <div class="dialog-head"><div><h3>新建改衣任務</h3><p>门市按实际收到数量建单；系统为每件服装生成内部编号和条码。</p></div><button class="secondary" type="button" data-close-alteration-task>取消</button></div>
         <div class="dialog-form-grid">
-          <label><span>员工</span><select name="employee_id" required></select></label>
           <label><span>订单</span><select name="order_id" required></select></label>
-          <label><span>门市</span><input name="store_name" required placeholder="例如：澳門門市" /></label>
+          <label><span>员工</span><select name="employee_id" required></select></label>
           <label><span>任务类型</span><select name="type"><option>普通改衣</option><option>师傅改错返工</option><option>收费改衣</option></select></label>
-          <label><span>SKU</span><input name="sku_id" required placeholder="现有订单 SKU" /></label>
-          <label><span>服装类型</span><input name="garment_name" required placeholder="例如：西裤" /></label>
+          <label><span>改衣产品</span><select name="sku_id" required></select></label>
           <label><span>实际收到数量</span><input name="quantity" type="number" min="1" step="1" value="1" required /></label>
           <label><span>手工费金额（可选）</span><input name="fee_amount" inputmode="decimal" placeholder="待确认可留空" /></label>
         </div>
         <label class="alteration-fee-check"><input name="requires_fee" type="checkbox" /> <span>标记为收费改衣（门市现场收款）</span></label>
         <label class="alteration-demand-field"><span>修改内容</span><textarea name="alteration" rows="3" required placeholder="例如：裤长缩短 2cm；请保留原有版型"></textarea></label>
-        <div class="dialog-tip">免费次数按 员工 + 订单 + SKU 计算；中止和师傅改错返工的次数规则需按需求确认后由管理员处理。</div>
+        <div class="dialog-tip">免费次数按 员工 + 订单 + 改衣产品 计算；中止和师傅改错返工的次数规则需按需求确认后由管理员处理。</div>
         <div class="dialog-actions"><button type="submit">保存改衣任务</button></div>
       </form>
     </dialog>
@@ -552,7 +550,7 @@
     </dialog>
     <dialog id="catalog-dialog" class="catalog-dialog"></dialog>
     <script src="../shared/workflow.js?v=20261028-role-permissions"></script>
-    <script src="./app.js?v=20261028-role-permissions"></script>
+    <script src="./app.js?v=20261030-pages"></script>
     <script src="./status-import.js?v=20261008-status-import"></script>
     <script src="./catalog.js?v=20260919-field-warning"></script>
   </body>
