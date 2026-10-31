@@ -56,6 +56,7 @@ test('alteration tasks keep one-item barcode and audit collections through norma
   const w = setup();
   const store = w.read();
   assert.ok(store.alterationTasks.length >= 2);
+  assert.ok(store.qcs.length >= 1);
   assert.ok(store.alterationTasks.every(task => task.items.length === 1 && task.items[0].quantity === 1 && task.items[0].barcode && task.items[0].id));
   const normalized = w.normalize({afterSales: [], employees: [], alterationTasks: [{id: 'ALT1'}]});
   assert.equal(normalized.alterationTasks[0].items.length, 0);
@@ -64,4 +65,15 @@ test('alteration tasks keep one-item barcode and audit collections through norma
   assert.equal(normalized.alterationTasks[0].history.length, 0);
   assert.equal(w.normalize({afterSales: [], employees: [], alterationTasks: [{id: 'ALT2', type: '员工中止后重新发起'}]}).alterationTasks[0].type, '普通改衣');
   assert.equal(w.normalize({afterSales: [], employees: [], alterationTasks: [{id: 'ALT3', status: '已分配待師傅收貨'}]}).alterationTasks[0].status, '改衣中');
+});
+test('alteration status normalization preserves the QC gate after tailor return', () => {
+  const w = setup({afterSales: [], employees: [], alterationTasks: [
+    {id: 'ALT-QC-1', status: '師傅已交回', items: [{id: 'ITEM-1', status: '師傅已交回'}]},
+    {id: 'ALT-QC-2', status: '門市驗收', items: [{id: 'ITEM-2', status: '門市驗收'}]},
+  ]});
+  const store = w.read();
+  assert.equal(store.alterationTasks[0].status, '门市质检');
+  assert.equal(store.alterationTasks[0].items[0].status, '门市质检');
+  assert.equal(store.alterationTasks[1].status, '门市质检');
+  assert.equal(store.alterationTasks[1].items[0].status, '门市质检');
 });

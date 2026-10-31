@@ -14,6 +14,10 @@ function seedStore() {
   return {
     afterSaleStatusVersion: 2,
     tailors: [{ id: "T001", name: "張師傅", username: "tailor-demo", has_password: true }],
+    qcs: [
+      { id: "QC001", name: "王質檢", username: "qc-demo" },
+      { id: "QC002", name: "陳質檢", username: "qc-hk" },
+    ],
     departments: ["深圳總部", "澳門分部", "香港分部"],
     orders: [{
       id: "O001",
@@ -128,16 +132,26 @@ function normalize(store) {
       : (account.role_id ? [account.role_id] : []);
     return { ...account, role_ids: roleIds, role_id: roleIds[0] || "" };
   });
-  store.alterationTasks = (store.alterationTasks || []).map(task => ({
-    ...task,
-    items: Array.isArray(task.items) ? task.items : [],
-    handovers: Array.isArray(task.handovers) ? task.handovers : [],
-    anomalies: Array.isArray(task.anomalies) ? task.anomalies : [],
-    history: Array.isArray(task.history) ? task.history : [],
-    type: task.type === "员工中止后重新发起" ? "普通改衣" : (task.type || "普通改衣"),
-    status: task.status === "已分配待師傅收貨" ? "改衣中" : (task.status || "門市已收衣"),
-    location: task.location || task.store_name || "未記錄",
-  }));
+  const defaultQcs = seedStore().qcs;
+  store.qcs = Array.isArray(store.qcs) && store.qcs.length
+    ? store.qcs.map(qc => ({ ...qc, id: qc.id || `QC_${Math.random().toString(36).slice(2, 8).toUpperCase()}`, name: String(qc.name || "未命名QC").trim(), username: String(qc.username || "").trim() }))
+    : defaultQcs;
+  const alterationStatusMap = { "已分配待師傅收貨": "改衣中", "師傅已交回": "门市质检", "門市驗收": "门市质检", "门市验收": "门市质检" };
+  store.alterationTasks = (store.alterationTasks || []).map(task => {
+    const status = alterationStatusMap[task.status] || task.status || "門市已收衣";
+    return {
+      ...task,
+      items: (Array.isArray(task.items) ? task.items : []).map(item => ({ ...item, status: alterationStatusMap[item.status] || item.status || status })),
+      handovers: Array.isArray(task.handovers) ? task.handovers : [],
+      anomalies: Array.isArray(task.anomalies) ? task.anomalies : [],
+      history: Array.isArray(task.history) ? task.history : [],
+      type: task.type === "员工中止后重新发起" ? "普通改衣" : (task.type || "普通改衣"),
+      status,
+      qc_id: task.qc_id || "",
+      qc_name: task.qc_name || "",
+      location: task.location || task.store_name || "未記錄",
+    };
+  });
   if (store.workflowVersion === 1) return store;
   const oldVersion = store.afterSaleStatusVersion;
   const map = { "已登記": after[0], "已處理": after[1], "已發回": after[4], "已完成": oldVersion === 2 ? after[4] : after[1] };

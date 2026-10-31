@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MC 量體管理後台</title>
-    <link rel="stylesheet" href="./styles.css?v=20261030-pages" />
+    <link rel="stylesheet" href="./styles.css?v=20261031-qc-flow" />
   </head>
   <body>
     <section class="login-view" id="login-view">
@@ -157,14 +157,14 @@
 
         <section class="view" id="view-alterations">
           <div class="panel list-toolbar">
-            <div><h3>改衣管理</h3><p>一件一码管理改衣任务，记录师傅分配、逐次交接、数量差异、收费、异常和员工中止。</p></div>
-            <div class="row-actions"><span id="alteration-selected-count" class="table-subtext">已选 0 个任务</span><button type="button" id="open-alteration-assign" data-permission="alteration_process">分配师傅</button><button type="button" id="open-alteration-return" data-permission="alteration_process">师傅交回门市</button><button type="button" id="print-alteration-barcodes" data-permission="alteration_process" disabled>批量打印条码</button><button type="button" id="open-alteration-task" data-permission="alteration_view">新建改衣任务</button><button class="secondary" type="button" id="export-alterations" data-permission="alteration_export">导出任务</button></div>
+            <div><h3>改衣管理</h3><p>一件一码管理改衣任务，记录师傅、QC 逐次交接、数量差异、收费、异常和员工中止。</p></div>
+            <div class="row-actions"><span id="alteration-selected-count" class="table-subtext">已选 0 个任务</span><button type="button" id="open-alteration-assign" data-permission="alteration_process">分配师傅</button><button type="button" id="open-alteration-return" data-permission="alteration_process">师傅交回门市</button><button type="button" id="open-alteration-qc-assign" data-permission="alteration_process">分配QC</button><button type="button" id="open-alteration-qc-return" data-permission="alteration_process">QC 交回</button><button type="button" id="print-alteration-barcodes" data-permission="alteration_process" disabled>批量打印条码</button><button type="button" id="open-alteration-task" data-permission="alteration_view">新建改衣任务</button><button class="secondary" type="button" id="export-alterations" data-permission="alteration_export">导出任务</button></div>
           </div>
           <div class="panel alteration-summary" id="alteration-summary"></div>
           <div class="panel alteration-filters">
             <label><span>任务 / 员工 / 師傅</span><input id="alteration-filter-keyword" type="search" placeholder="编号、员工、订单或师傅" /></label>
             <label><span>任务类型</span><select id="alteration-filter-type"><option value="">全部类型</option><option>普通改衣</option><option>师傅改错返工</option><option>收费改衣</option></select></label>
-            <label><span>状态</span><select id="alteration-filter-status"><option value="">全部状态</option><option>门市已收衣</option><option>待分配</option><option>改衣中</option><option>师傅已交回</option><option>门市验收</option><option>待派送</option><option>支行代签</option><option>已完成</option><option>员工中止</option><option>待处理异常</option></select></label>
+            <label><span>状态</span><select id="alteration-filter-status"><option value="">全部状态</option><option>门市已收衣</option><option>待分配</option><option>改衣中</option><option>门市质检</option><option>待派送</option><option>支行代签</option><option>已完成</option><option>员工中止</option><option>待处理异常</option></select></label>
             <label class="alteration-check-filter"><input id="alteration-filter-anomaly" type="checkbox" /> <span>只看待处理异常</span></label>
             <button class="secondary" type="button" id="clear-alteration-filters">清除筛选</button>
           </div>
@@ -473,12 +473,35 @@
     </dialog>
     <dialog class="alteration-assign-dialog" id="alteration-return-dialog">
       <form id="alteration-return-form">
-        <div class="dialog-head"><div><h3>师傅交回门市</h3><p>用扫码枪扫描师傅交回的任务条码；每扫描一件增加一件，签收后默认验收通过并进入待派送。</p></div><button class="secondary" type="button" data-close-alteration-return>取消</button></div>
+        <div class="dialog-head"><div><h3>师傅交回门市</h3><p>用扫码枪扫描师傅交回的任务条码；每扫描一件增加一件，签收后进入门市质检。</p></div><button class="secondary" type="button" data-close-alteration-return>取消</button></div>
         <label><span>扫码枪输入</span><input id="alteration-return-scan" autocomplete="off" placeholder="扫描条码后自动加入" /></label>
         <p class="dialog-tip">只接受状态为“改衣中”的任务；重复扫描不会重复加入。</p>
         <div class="table-wrap"><table id="alteration-return-scan-table"></table></div>
         <p class="form-error" id="alteration-return-error" hidden></p>
-        <div class="dialog-actions"><button type="submit">确认签收并默认验收</button></div>
+        <div class="dialog-actions"><button type="submit">确认签收并进入门市质检</button></div>
+      </form>
+    </dialog>
+    <dialog class="alteration-assign-dialog" id="alteration-qc-assign-dialog">
+      <form id="alteration-qc-assign-form">
+        <div class="dialog-head"><div><h3>分配QC</h3><p>先选择 QC，再用扫码枪扫描待质检服装条码；每扫描一件增加一件。</p></div><button class="secondary" type="button" data-close-alteration-qc-assign>取消</button></div>
+        <div class="dialog-form-grid alteration-assign-fields">
+          <label><span>QC</span><select id="alteration-qc-assign-inspector" name="qc_id" required></select></label>
+          <label><span>扫码枪输入</span><input id="alteration-qc-barcode-scan" autocomplete="off" placeholder="扫描条码后自动加入" /></label>
+        </div>
+        <p class="dialog-tip">只接受状态为“门市质检”的任务；重复扫描不会重复加入，已分配 QC 的任务不能再次分配。</p>
+        <div class="table-wrap"><table id="alteration-qc-assignment-scan-table"></table></div>
+        <p class="form-error" id="alteration-qc-assign-error" hidden></p>
+        <div class="dialog-actions"><button type="submit">确认分配已扫描任务</button></div>
+      </form>
+    </dialog>
+    <dialog class="alteration-assign-dialog" id="alteration-qc-return-dialog">
+      <form id="alteration-qc-return-form">
+        <div class="dialog-head"><div><h3>QC 交回</h3><p>用扫码枪扫描 QC 完成质检后交回门市的服装条码；确认后任务进入待派送。</p></div><button class="secondary" type="button" data-close-alteration-qc-return>取消</button></div>
+        <label><span>扫码枪输入</span><input id="alteration-qc-return-scan" autocomplete="off" placeholder="扫描条码后自动加入" /></label>
+        <p class="dialog-tip">只接受状态为“门市质检”且已分配 QC 的任务；重复扫描不会重复加入。</p>
+        <div class="table-wrap"><table id="alteration-qc-return-scan-table"></table></div>
+        <p class="form-error" id="alteration-qc-return-error" hidden></p>
+        <div class="dialog-actions"><button type="submit">确认 QC 交回并进入待派送</button></div>
       </form>
     </dialog>
     <dialog class="comparison-dialog" id="comparison-dialog">
@@ -549,8 +572,8 @@
       </form>
     </dialog>
     <dialog id="catalog-dialog" class="catalog-dialog"></dialog>
-    <script src="../shared/workflow.js?v=20261028-role-permissions"></script>
-    <script src="./app.js?v=20261030-pages"></script>
+    <script src="../shared/workflow.js?v=20261031-qc-flow"></script>
+    <script src="./app.js?v=20261031-qc-flow"></script>
     <script src="./status-import.js?v=20261008-status-import"></script>
     <script src="./catalog.js?v=20260919-field-warning"></script>
   </body>

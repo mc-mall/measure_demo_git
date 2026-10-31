@@ -15,6 +15,8 @@ const alterationPagination = { page: 1, pageSize: 15 };
 const alterationSelection = new Set();
 const alterationAssignmentState = { taskIds: new Set(), currentTaskId: "" };
 const alterationReturnState = { taskIds: new Set() };
+const alterationQcAssignmentState = { taskIds: new Set(), currentTaskId: "" };
+const alterationQcReturnState = { taskIds: new Set() };
 const orderEditorState = { step: 1, garments: [], quantityRules: [] };
 const signatureDetailState = { orderId: "", page: 1, pageSize: 15 };
 const appointmentSelection = new Set();
@@ -762,7 +764,7 @@ function alterationItemSummary(task) {
 function alterationStatusClass(status) {
   if (["已完成", "支行代簽"].includes(status)) return "status-completed";
   if (["待處理異常", "員工中止"].includes(status)) return "status-alert";
-  if (["改衣中", "師傅已交回", "門市驗收", "待派送"].includes(status)) return "status-processing";
+  if (["改衣中", "门市质检", "待派送"].includes(status)) return "status-processing";
   return "status-registered";
 }
 
@@ -784,12 +786,12 @@ function renderAlterations() {
   const rows = pageRecords.map(task => {
     const quantities = alterationItemQuantity(task);
     const unresolved = (task.anomalies || []).filter(item => !item.closed_at).length;
-    return `<tr><td><input class="alteration-row-check" type="checkbox" value="${escapeHtml(task.id)}" aria-label="选择 ${escapeHtml(task.id)}" ${alterationSelection.has(task.id) ? "checked" : ""} /></td><td><strong>${escapeHtml(task.id)}</strong><small class="table-subtext">${escapeHtml(task.created_at || "")}</small></td><td>${escapeHtml(task.employee_id)}<small class="table-subtext">${escapeHtml(task.employee_name)} · ${escapeHtml(task.order_id)}</small></td><td>${escapeHtml(task.type)}</td><td class="wrap-cell">${escapeHtml(alterationItemSummary(task))}<small class="table-subtext">理論 ${quantities.expected} 件 · 交接最新 ${quantities.actual} 件</small></td><td><span class="alteration-status ${alterationStatusClass(task.status)}">${escapeHtml(task.status)}</span></td><td>${escapeHtml(task.tailor_name || "未分配")}<small class="table-subtext">${escapeHtml(task.location || "未記錄")}</small></td><td>${task.requires_fee ? `${task.paid ? "已收款" : "待收款"} · ${escapeHtml(task.fee_amount || "待定")}` : "免費"}</td><td>${unresolved ? `<span class="status-pill is-pending">${unresolved} 項</span>` : "-"}</td><td><button type="button" data-alteration-detail="${escapeHtml(task.id)}">查看 / 處理</button></td></tr>`;
+    return `<tr><td><input class="alteration-row-check" type="checkbox" value="${escapeHtml(task.id)}" aria-label="选择 ${escapeHtml(task.id)}" ${alterationSelection.has(task.id) ? "checked" : ""} /></td><td><strong>${escapeHtml(task.id)}</strong><small class="table-subtext">${escapeHtml(task.created_at || "")}</small></td><td>${escapeHtml(task.employee_id)}<small class="table-subtext">${escapeHtml(task.employee_name)} · ${escapeHtml(task.order_id)}</small></td><td>${escapeHtml(task.type)}</td><td class="wrap-cell">${escapeHtml(alterationItemSummary(task))}<small class="table-subtext">理論 ${quantities.expected} 件 · 交接最新 ${quantities.actual} 件</small></td><td><span class="alteration-status ${alterationStatusClass(task.status)}">${escapeHtml(task.status)}</span></td><td>${escapeHtml(task.tailor_name || "未分配")}<small class="table-subtext">QC：${escapeHtml(task.qc_name || "未分配")}</small><small class="table-subtext">${escapeHtml(task.location || "未記錄")}</small></td><td>${task.requires_fee ? `${task.paid ? "已收款" : "待收款"} · ${escapeHtml(task.fee_amount || "待定")}` : "免費"}</td><td>${unresolved ? `<span class="status-pill is-pending">${unresolved} 項</span>` : "-"}</td><td><button type="button" data-alteration-detail="${escapeHtml(task.id)}">查看 / 處理</button></td></tr>`;
   });
-  renderTable("alteration-table", [`<label class="table-check-all"><input id="alteration-check-page" type="checkbox" aria-label="选择当前页" /><span>选择</span></label>`, "改衣任務", "員工 / 訂單", "任務類型", "服裝明細 / 數量", "狀態", "師傅 / 位置", "收款", "異常", "操作"], rows, "暫無改衣任務");
+  renderTable("alteration-table", [`<label class="table-check-all"><input id="alteration-check-page" type="checkbox" aria-label="选择当前页" /><span>选择</span></label>`, "改衣任務", "員工 / 訂單", "任務類型", "服裝明細 / 數量", "狀態", "師傅 / QC / 位置", "收款", "異常", "操作"], rows, "暫無改衣任務");
   document.getElementById("alteration-pagination").innerHTML = `<div>共 ${filteredAlterations.length} 筆 · 第 ${alterationPagination.page} / ${totalPages} 頁</div><div><label class="pagination-size"><span>每頁</span><select id="alteration-page-size"><option value="15" ${alterationPagination.pageSize === 15 ? "selected" : ""}>15 條/頁</option><option value="50" ${alterationPagination.pageSize === 50 ? "selected" : ""}>50 條/頁</option></select></label><button class="secondary" type="button" data-alteration-page="prev" ${alterationPagination.page <= 1 ? "disabled" : ""}>上一頁</button><button class="secondary" type="button" data-alteration-page="next" ${alterationPagination.page >= totalPages ? "disabled" : ""}>下一頁</button></div>`;
   const pending = (store.alterationTasks || []).filter(task => task.status === "待處理異常" || (task.anomalies || []).some(item => !item.closed_at)).length;
-  document.getElementById("alteration-summary").innerHTML = `<div><span>任務總數</span><strong>${(store.alterationTasks || []).length}</strong></div><div><span>師傅在手</span><strong>${(store.alterationTasks || []).filter(task => task.status === "改衣中").length}</strong></div><div><span>待派送</span><strong>${(store.alterationTasks || []).filter(task => task.status === "待派送").length}</strong></div><div class="is-warning"><span>待處理異常</span><strong>${pending}</strong></div>`;
+  document.getElementById("alteration-summary").innerHTML = `<div><span>任務總數</span><strong>${(store.alterationTasks || []).length}</strong></div><div><span>師傅在手</span><strong>${(store.alterationTasks || []).filter(task => task.status === "改衣中").length}</strong></div><div><span>門市質檢</span><strong>${(store.alterationTasks || []).filter(task => task.status === "门市质检").length}</strong></div><div><span>待派送</span><strong>${(store.alterationTasks || []).filter(task => task.status === "待派送").length}</strong></div><div class="is-warning"><span>待處理異常</span><strong>${pending}</strong></div>`;
   updateAlterationSelection();
 }
 
@@ -857,7 +859,7 @@ function openAlterationDetail(taskId) {
   const anomalyRows = (task.anomalies || []).map(item => `<tr><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.description)}</td><td>${escapeHtml(item.created_by)} · ${escapeHtml(item.created_at)}</td><td>${item.closed_at ? `已關閉：${escapeHtml(item.conclusion)}<br>${escapeHtml(item.closed_by)} · ${escapeHtml(item.closed_at)}` : `<span class="status-pill is-pending">待處理</span> ${isOwner() || hasPermission("alteration_anomaly") ? `<button type="button" data-alteration-action="close-anomaly" data-alteration-id="${escapeHtml(task.id)}" data-anomaly-id="${escapeHtml(item.id)}">填寫處理結論</button>` : ""}`}</td></tr>`).join("");
   const history = (task.history || []).map(item => `<tr><td>${escapeHtml(item.at)}</td><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.operator || "未記錄")}</td></tr>`).join("");
   const handovers = (task.handovers || []).map(item => `<tr><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.from || "-")}</td><td>${escapeHtml(item.to || "-")}</td><td>${escapeHtml(item.handover_at || "-")}</td><td>${Number(item.expected_quantity) || 0} / ${Number(item.actual_quantity) || 0}</td><td>${escapeHtml(item.location || "-")}<small class="table-subtext">${escapeHtml(item.remark || "")}</small></td></tr>`).join("");
-  document.getElementById("alteration-detail-content").innerHTML = `<div class="alteration-detail-actions">${actions.join("")}</div><div class="alteration-detail-meta"><div><span>狀態</span><strong>${escapeHtml(task.status)}</strong></div><div><span>當前位置</span><strong>${escapeHtml(task.location || "未記錄")}</strong></div><div><span>師傅 / 加工組織</span><strong>${escapeHtml(task.tailor_name || "未分配")} · ${escapeHtml(task.tailor_org || "-")}</strong></div><div><span>數量核對</span><strong>理論 ${quantities.expected} 件 · 最新交接 ${quantities.actual} 件 · 差異 ${quantities.actual - quantities.expected}</strong></div><div><span>收款</span><strong>${task.requires_fee ? `${task.paid ? "已收款" : "待收款"} · ${escapeHtml(task.fee_amount || "待定")}` : "免費改衣"}</strong></div><div><span>創建記錄</span><strong>${escapeHtml(task.created_by || "-")} · ${escapeHtml(task.created_at || "-")}</strong></div></div><h4>逐件服裝與條碼</h4><div class="table-wrap"><table><thead><tr><th>內部編號</th><th>條碼</th><th>SKU / 服裝</th><th>修改內容</th><th>數量</th><th>狀態 / 位置</th></tr></thead><tbody>${(task.items || []).map(item => `<tr><td>${escapeHtml(item.id)}</td><td><code>${escapeHtml(item.barcode)}</code></td><td>${escapeHtml(item.sku_id)} / ${escapeHtml(item.garment_name)}</td><td class="wrap-cell">${escapeHtml(item.alteration)}</td><td>${Number(item.quantity) || 0}</td><td>${escapeHtml(item.status)}<small class="table-subtext">${escapeHtml(item.location || "-")}</small></td></tr>`).join("")}</tbody></table></div><section class="alteration-detail-section"><h4>交接记录</h4><div class="table-wrap"><table><thead><tr><th>类型</th><th>交出方</th><th>接收方</th><th>时间</th><th>应交 / 实交</th><th>地点 / 备注</th></tr></thead><tbody>${handovers || '<tr><td colspan="6">暂无交接记录</td></tr>'}</tbody></table></div></section><section class="alteration-detail-section"><h4>异常记录</h4><div class="table-wrap"><table><thead><tr><th>类型</th><th>说明</th><th>创建</th><th>处理</th></tr></thead><tbody>${anomalyRows || '<tr><td colspan="4">暂无异常记录</td></tr>'}</tbody></table></div></section><section class="alteration-detail-section"><h4>审计历史</h4><div class="table-wrap"><table><thead><tr><th>时间</th><th>操作</th><th>操作人</th></tr></thead><tbody>${history || '<tr><td colspan="3">暂无历史记录</td></tr>'}</tbody></table></div></section>`;
+  document.getElementById("alteration-detail-content").innerHTML = `<div class="alteration-detail-actions">${actions.join("")}</div><div class="alteration-detail-meta"><div><span>狀態</span><strong>${escapeHtml(task.status)}</strong></div><div><span>當前位置</span><strong>${escapeHtml(task.location || "未記錄")}</strong></div><div><span>師傅 / 加工組織</span><strong>${escapeHtml(task.tailor_name || "未分配")} · ${escapeHtml(task.tailor_org || "-")}</strong></div><div><span>QC</span><strong>${escapeHtml(task.qc_name || "未分配")}</strong></div><div><span>數量核對</span><strong>理論 ${quantities.expected} 件 · 最新交接 ${quantities.actual} 件 · 差異 ${quantities.actual - quantities.expected}</strong></div><div><span>收款</span><strong>${task.requires_fee ? `${task.paid ? "已收款" : "待收款"} · ${escapeHtml(task.fee_amount || "待定")}` : "免費改衣"}</strong></div><div><span>創建記錄</span><strong>${escapeHtml(task.created_by || "-")} · ${escapeHtml(task.created_at || "-")}</strong></div></div><h4>逐件服裝與條碼</h4><div class="table-wrap"><table><thead><tr><th>內部編號</th><th>條碼</th><th>SKU / 服裝</th><th>修改內容</th><th>數量</th><th>狀態 / 位置</th></tr></thead><tbody>${(task.items || []).map(item => `<tr><td>${escapeHtml(item.id)}</td><td><code>${escapeHtml(item.barcode)}</code></td><td>${escapeHtml(item.sku_id)} / ${escapeHtml(item.garment_name)}</td><td class="wrap-cell">${escapeHtml(item.alteration)}</td><td>${Number(item.quantity) || 0}</td><td>${escapeHtml(item.status)}<small class="table-subtext">${escapeHtml(item.location || "-")}</small></td></tr>`).join("")}</tbody></table></div><section class="alteration-detail-section"><h4>交接记录</h4><div class="table-wrap"><table><thead><tr><th>类型</th><th>交出方</th><th>接收方</th><th>时间</th><th>应交 / 实交</th><th>地点 / 备注</th></tr></thead><tbody>${handovers || '<tr><td colspan="6">暂无交接记录</td></tr>'}</tbody></table></div></section><section class="alteration-detail-section"><h4>异常记录</h4><div class="table-wrap"><table><thead><tr><th>类型</th><th>说明</th><th>创建</th><th>处理</th></tr></thead><tbody>${anomalyRows || '<tr><td colspan="4">暂无异常记录</td></tr>'}</tbody></table></div></section><section class="alteration-detail-section"><h4>审计历史</h4><div class="table-wrap"><table><thead><tr><th>时间</th><th>操作</th><th>操作人</th></tr></thead><tbody>${history || '<tr><td colspan="3">暂无历史记录</td></tr>'}</tbody></table></div></section>`;
   document.getElementById("alteration-detail-dialog").showModal();
 }
 
@@ -1025,19 +1027,190 @@ function confirmAlterationReturn() {
   }
   selected.forEach(task => {
     const storeName = task.store_name || "門市";
-    task.status = "待派送";
+    task.status = "门市质检";
     task.location = storeName;
-    (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; item.completed = true; });
-    addAlterationHandover(task, "師傅交回", task.tailor_name || "師傅", storeName, "扫码签收，默认验收通过");
-    addAlterationHandover(task, "門市驗收", storeName, "待派送", "默认验收通过");
-    recordAlterationHistory(task, "師傅交回門市，默认验收通过，进入待派送");
+    (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; item.completed = false; });
+    addAlterationHandover(task, "師傅交回", task.tailor_name || "師傅", storeName, "扫码签收，待门市质检");
+    recordAlterationHistory(task, "師傅交回門市，进入门市质检");
   });
   saveStore(store);
   alterationReturnState.taskIds = new Set();
   alterationSelection.clear();
   document.getElementById("alteration-return-dialog").close();
   renderAll();
-  showToast(`已签收 ${selected.length} 个任务并默认验收通过，状态更新为待派送。`);
+  showToast(`已签收 ${selected.length} 个任务，状态更新为门市质检。`);
+}
+
+function renderAlterationQcAssignmentScans() {
+  const store = loadStore();
+  const tasks = [...alterationQcAssignmentState.taskIds].map(taskId => (store.alterationTasks || []).find(task => task.id === taskId)).filter(Boolean);
+  renderTable("alteration-qc-assignment-scan-table", ["任务编号", "条码", "员工 / 服装", "当前状态", "操作"], tasks.map(task => {
+    const item = task.items?.[0] || {};
+    return `<tr><td>${escapeHtml(task.id)}</td><td><code>${escapeHtml(item.barcode || "")}</code></td><td>${escapeHtml(task.employee_id)} · ${escapeHtml(task.employee_name)}<small class="table-subtext">${escapeHtml(item.garment_name || "")}</small></td><td>${escapeHtml(task.status)}</td><td><button class="secondary" type="button" data-remove-alteration-qc-scan="${escapeHtml(task.id)}">移除</button></td></tr>`;
+  }), "请扫描门市质检条码");
+}
+
+function openAlterationQcAssignment(taskId = "", initialTaskIds = []) {
+  if (!isOwner() && !hasPermission("alteration_process")) return;
+  const store = loadStore();
+  alterationQcAssignmentState.taskIds = new Set(initialTaskIds);
+  alterationQcAssignmentState.currentTaskId = taskId;
+  const task = (store.alterationTasks || []).find(item => item.id === taskId);
+  if (task?.items?.[0]?.barcode && task.status === "门市质检" && !task.qc_name) alterationQcAssignmentState.taskIds.add(task.id);
+  alterationQcAssignmentState.taskIds = new Set([...alterationQcAssignmentState.taskIds].filter(id => {
+    const selected = (store.alterationTasks || []).find(item => item.id === id);
+    return selected && selected.status === "门市质检" && !selected.qc_name;
+  }));
+  const select = document.getElementById("alteration-qc-assign-inspector");
+  select.innerHTML = (store.qcs || []).map(qc => `<option value="${escapeHtml(qc.id)}">${escapeHtml(qc.name)}${qc.username ? ` · ${escapeHtml(qc.username)}` : ""}</option>`).join("");
+  document.getElementById("alteration-qc-assign-error").hidden = true;
+  renderAlterationQcAssignmentScans();
+  document.getElementById("alteration-qc-assign-dialog").showModal();
+  document.getElementById("alteration-qc-barcode-scan").focus();
+}
+
+function addAlterationQcBarcodeScan(value) {
+  const barcode = String(value || "").trim();
+  if (!barcode) return;
+  const error = document.getElementById("alteration-qc-assign-error");
+  const store = loadStore();
+  const match = (store.alterationTasks || []).find(task => task.items?.some(item => item.barcode === barcode));
+  if (!match) {
+    error.textContent = `未找到条码 ${barcode} 对应的改衣任务。`;
+    error.hidden = false;
+  } else if (match.status !== "门市质检") {
+    error.textContent = `任务 ${match.id} 当前为“${match.status}”，不能分配 QC。`;
+    error.hidden = false;
+  } else if (match.qc_name) {
+    error.textContent = `任务 ${match.id} 已分配 QC：${match.qc_name}。`;
+    error.hidden = false;
+  } else if (alterationQcAssignmentState.taskIds.has(match.id)) {
+    error.textContent = `任务 ${match.id} 已在待分配清单中，未重复加入。`;
+    error.hidden = false;
+  } else {
+    alterationQcAssignmentState.taskIds.add(match.id);
+    error.hidden = true;
+    renderAlterationQcAssignmentScans();
+  }
+  document.getElementById("alteration-qc-barcode-scan").value = "";
+  document.getElementById("alteration-qc-barcode-scan").focus();
+}
+
+function confirmAlterationQcAssignment(form) {
+  const qcId = form.elements.qc_id.value;
+  const store = loadStore();
+  const qc = (store.qcs || []).find(item => item.id === qcId);
+  const taskIds = [...alterationQcAssignmentState.taskIds];
+  const error = document.getElementById("alteration-qc-assign-error");
+  if (!qc || !taskIds.length) {
+    error.textContent = "请先选择 QC 并扫描至少一个任务条码。";
+    error.hidden = false;
+    return;
+  }
+  const selected = (store.alterationTasks || []).filter(task => taskIds.includes(task.id));
+  if (selected.length !== taskIds.length || selected.some(task => task.status !== "门市质检" || task.qc_name)) {
+    error.textContent = "待分配清单中有任务状态或 QC 已变化，请重新扫描。";
+    error.hidden = false;
+    return;
+  }
+  selected.forEach(task => {
+    const storeName = task.store_name || "門市";
+    task.qc_id = qc.id;
+    task.qc_name = qc.name;
+    task.location = storeName;
+    (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; });
+    addAlterationHandover(task, "分配QC", storeName, task.qc_name, "门市质检任务已分配");
+    recordAlterationHistory(task, `分配QC：${task.qc_name}`);
+  });
+  saveStore(store);
+  const currentTaskId = alterationQcAssignmentState.currentTaskId;
+  alterationQcAssignmentState.taskIds = new Set();
+  alterationQcAssignmentState.currentTaskId = "";
+  alterationSelection.clear();
+  document.getElementById("alteration-qc-assign-dialog").close();
+  renderAll();
+  if (currentTaskId) openAlterationDetail(currentTaskId);
+  showToast(`已将 ${selected.length} 个单件任务分配给 ${qc.name}。`);
+}
+
+function renderAlterationQcReturnScans() {
+  const store = loadStore();
+  const tasks = [...alterationQcReturnState.taskIds].map(taskId => (store.alterationTasks || []).find(task => task.id === taskId)).filter(Boolean);
+  renderTable("alteration-qc-return-scan-table", ["任务编号", "条码", "员工 / 服装", "QC", "操作"], tasks.map(task => {
+    const item = task.items?.[0] || {};
+    return `<tr><td>${escapeHtml(task.id)}</td><td><code>${escapeHtml(item.barcode || "")}</code></td><td>${escapeHtml(task.employee_id)} · ${escapeHtml(task.employee_name)}<small class="table-subtext">${escapeHtml(item.garment_name || "")}</small></td><td>${escapeHtml(task.qc_name || "未分配")}</td><td><button class="secondary" type="button" data-remove-alteration-qc-return="${escapeHtml(task.id)}">移除</button></td></tr>`;
+  }), "请扫描 QC 交回条码");
+}
+
+function openAlterationQcReturnDialog(initialTaskIds = []) {
+  if (!isOwner() && !hasPermission("alteration_process")) return;
+  const store = loadStore();
+  alterationQcReturnState.taskIds = new Set(initialTaskIds.filter(taskId => {
+    const task = (store.alterationTasks || []).find(item => item.id === taskId);
+    return task?.status === "门市质检" && task.qc_name;
+  }));
+  document.getElementById("alteration-qc-return-error").hidden = true;
+  renderAlterationQcReturnScans();
+  document.getElementById("alteration-qc-return-dialog").showModal();
+  document.getElementById("alteration-qc-return-scan").focus();
+}
+
+function addAlterationQcReturnScan(value) {
+  const barcode = String(value || "").trim();
+  if (!barcode) return;
+  const error = document.getElementById("alteration-qc-return-error");
+  const store = loadStore();
+  const match = (store.alterationTasks || []).find(task => task.items?.some(item => item.barcode === barcode));
+  if (!match) {
+    error.textContent = `未找到条码 ${barcode} 对应的改衣任务。`;
+    error.hidden = false;
+  } else if (match.status !== "门市质检") {
+    error.textContent = `任务 ${match.id} 当前为“${match.status}”，不能登记 QC 交回。`;
+    error.hidden = false;
+  } else if (!match.qc_name) {
+    error.textContent = `任务 ${match.id} 尚未分配 QC，不能登记交回。`;
+    error.hidden = false;
+  } else if (alterationQcReturnState.taskIds.has(match.id)) {
+    error.textContent = `任务 ${match.id} 已在待回收清单中，未重复加入。`;
+    error.hidden = false;
+  } else {
+    alterationQcReturnState.taskIds.add(match.id);
+    error.hidden = true;
+    renderAlterationQcReturnScans();
+  }
+  document.getElementById("alteration-qc-return-scan").value = "";
+  document.getElementById("alteration-qc-return-scan").focus();
+}
+
+function confirmAlterationQcReturn() {
+  const store = loadStore();
+  const taskIds = [...alterationQcReturnState.taskIds];
+  const error = document.getElementById("alteration-qc-return-error");
+  if (!taskIds.length) {
+    error.textContent = "请至少扫描一个 QC 交回的任务条码。";
+    error.hidden = false;
+    return;
+  }
+  const selected = (store.alterationTasks || []).filter(task => taskIds.includes(task.id));
+  if (selected.length !== taskIds.length || selected.some(task => task.status !== "门市质检" || !task.qc_name)) {
+    error.textContent = "待回收清单中有任务状态或 QC 已变化，请重新扫描。";
+    error.hidden = false;
+    return;
+  }
+  selected.forEach(task => {
+    const storeName = task.store_name || "門市";
+    task.status = "待派送";
+    task.location = storeName;
+    (task.items || []).forEach(item => { item.status = task.status; item.location = task.location; item.completed = true; });
+    addAlterationHandover(task, "QC交回", task.qc_name, storeName, "扫码回收，质检完成");
+    recordAlterationHistory(task, "QC 交回门市，质检完成，进入待派送");
+  });
+  saveStore(store);
+  alterationQcReturnState.taskIds = new Set();
+  alterationSelection.clear();
+  document.getElementById("alteration-qc-return-dialog").close();
+  renderAll();
+  showToast(`已回收 ${selected.length} 个任务，状态更新为待派送。`);
 }
 
 function processAlteration(taskId, action, anomalyId = "") {
@@ -2414,6 +2587,20 @@ document.getElementById("alteration-return-form").addEventListener("submit", eve
   event.preventDefault();
   if (isOwner() || hasPermission("alteration_process")) confirmAlterationReturn();
 });
+document.getElementById("alteration-qc-assign-form").addEventListener("submit", event => {
+  event.preventDefault();
+  if (isOwner() || hasPermission("alteration_process")) confirmAlterationQcAssignment(event.currentTarget);
+});
+document.getElementById("open-alteration-qc-assign").addEventListener("click", () => {
+  openAlterationQcAssignment("", [...alterationSelection]);
+});
+document.getElementById("open-alteration-qc-return").addEventListener("click", () => {
+  openAlterationQcReturnDialog([...alterationSelection]);
+});
+document.getElementById("alteration-qc-return-form").addEventListener("submit", event => {
+  event.preventDefault();
+  if (isOwner() || hasPermission("alteration_process")) confirmAlterationQcReturn();
+});
 document.getElementById("alteration-barcode-scan").addEventListener("keydown", event => {
   if (event.key !== "Enter") return;
   event.preventDefault();
@@ -2423,6 +2610,16 @@ document.getElementById("alteration-return-scan").addEventListener("keydown", ev
   if (event.key !== "Enter") return;
   event.preventDefault();
   addAlterationReturnScan(event.currentTarget.value);
+});
+document.getElementById("alteration-qc-barcode-scan").addEventListener("keydown", event => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addAlterationQcBarcodeScan(event.currentTarget.value);
+});
+document.getElementById("alteration-qc-return-scan").addEventListener("keydown", event => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addAlterationQcReturnScan(event.currentTarget.value);
 });
 document.getElementById("export-alterations").addEventListener("click", () => {
   if (!isOwner() && !hasPermission("alteration_export")) return;
@@ -2795,6 +2992,16 @@ document.body.addEventListener("click", (event) => {
     renderAlterationReturnScans();
     document.getElementById("alteration-return-scan")?.focus();
   }
+  if (button.dataset.removeAlterationQcScan) {
+    alterationQcAssignmentState.taskIds.delete(button.dataset.removeAlterationQcScan);
+    renderAlterationQcAssignmentScans();
+    document.getElementById("alteration-qc-barcode-scan")?.focus();
+  }
+  if (button.dataset.removeAlterationQcReturn) {
+    alterationQcReturnState.taskIds.delete(button.dataset.removeAlterationQcReturn);
+    renderAlterationQcReturnScans();
+    document.getElementById("alteration-qc-return-scan")?.focus();
+  }
   if (button.dataset.alterationAction) {
     if (button.dataset.alterationAction === "assign" || button.dataset.alterationAction === "receive" || button.dataset.alterationAction === "return" || button.dataset.alterationAction === "verify" || button.dataset.alterationAction === "stop" || button.dataset.alterationAction === "paid") {
       if (!isOwner() && !hasPermission("alteration_process")) return;
@@ -2886,6 +3093,8 @@ document.body.addEventListener("click", (event) => {
   if (button.hasAttribute("data-close-alteration-task")) document.getElementById("alteration-task-dialog").close();
   if (button.hasAttribute("data-close-alteration-assign")) document.getElementById("alteration-assign-dialog").close();
   if (button.hasAttribute("data-close-alteration-return")) document.getElementById("alteration-return-dialog").close();
+  if (button.hasAttribute("data-close-alteration-qc-assign")) document.getElementById("alteration-qc-assign-dialog").close();
+  if (button.hasAttribute("data-close-alteration-qc-return")) document.getElementById("alteration-qc-return-dialog").close();
   if (button.dataset.exportRecords) exportRecords(button.dataset.exportRecords, button.closest("[data-record-export-panel]"));
   if (button.dataset.recordPage) {
     const paging = recordPagination[button.dataset.recordPage];
