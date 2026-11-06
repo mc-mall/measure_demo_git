@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>MC 量體資料收集</title>
-    <link rel="stylesheet" href="./styles.css?v=20260919-field-warning" />
+    <link rel="stylesheet" href="./styles.css?v=20261106-landscape-login" />
   </head>
   <body>
     <main class="app-shell">
@@ -34,33 +34,38 @@
         <li>完成</li>
       </ol>
 
-      <section class="page is-active" data-page="0">
-        <div class="section-head">
-          <p>Tailor Login</p>
-          <h2>裁縫師登入</h2>
+      <section class="page login-page is-active" data-page="0" aria-labelledby="login-title">
+        <div class="login-brand">
+          <div class="brand-mark" aria-hidden="true">MC</div>
+          <p class="brand-name">MC SPORTSWEAR &amp; UNIFORM</p>
+          <p class="login-brand-title">量體資料收集</p>
         </div>
 
-        <form class="form" id="login-form">
-          <label class="field">
-            <span>API Base URL</span>
-            <input name="api_base" value="" placeholder="留空使用本機演示資料；例：https://example.com/api" />
-          </label>
-          <div class="field-grid">
+        <div class="login-panel">
+          <h1 id="login-title">裁縫師登入</h1>
+          <form class="form" id="login-form">
             <label class="field">
-              <span>裁縫師賬號</span>
-              <input name="username" autocomplete="username" required />
+              <span>API Base URL</span>
+              <input name="api_base" value="" placeholder="留空使用本機演示資料；例：https://example.com/api" />
             </label>
-            <label class="field">
-              <span>密碼</span>
-              <input name="password" type="password" autocomplete="current-password" required />
-            </label>
-          </div>
-          <button class="primary-action" type="submit">登入</button>
-          <p class="measure-hint">原型模式下请使用后台已有的裁缝师账号；密码仅用于演示输入，不会保存或校验明文。</p>
-        </form>
+            <div class="field-grid">
+              <label class="field">
+                <span>裁縫師賬號</span>
+                <input name="username" autocomplete="username" required />
+              </label>
+              <label class="field">
+                <span>密碼</span>
+                <input name="password" type="password" autocomplete="current-password" required />
+              </label>
+            </div>
+            <button class="primary-action" type="submit">登入</button>
+            <p class="measure-hint">本機演示賬號為 tailor-demo，密碼可輸入任意值。也可使用管理後台已建立的裁縫師賬號。</p>
+          </form>
+        </div>
       </section>
 
-      <section class="page" data-page="1">
+      <div class="measurement-layout">
+      <section class="page employee-lookup" data-page="1">
         <div class="section-head">
           <p>Employee Lookup</p>
           <h2>員工基本資料</h2>
@@ -75,21 +80,53 @@
               </select>
             </label>
             <label class="field">
-              <span>員工編號</span>
-              <input name="employee_id" required />
+              <span id="employee-query-label">員工編號</span>
+              <input name="employee_id" autocomplete="off" autocapitalize="off" required />
             </label>
           </div>
           <button class="secondary-action" type="submit">查詢員工</button>
         </form>
 
         <article class="employee-card" id="employee-card" hidden></article>
+        <section class="archive-picker" id="archive-picker" aria-labelledby="archive-picker-title" hidden>
+          <div class="archive-heading">
+            <h3 id="archive-picker-title">量體檔案</h3>
+            <span id="archive-count" role="status"></span>
+          </div>
+          <div id="archive-options" class="archive-options" role="radiogroup" aria-label="選擇量體版本"></div>
+          <div class="archive-actions">
+            <button type="button" class="secondary-action" data-archive-action="edit">修改檔案</button>
+            <button type="button" class="secondary-action" data-archive-action="copy">複製並修改</button>
+            <button type="button" class="primary-action" data-archive-action="new">錄入新檔案</button>
+            <button type="button" class="secondary-action" data-archive-action="resume" hidden>繼續草稿</button>
+            <button type="button" class="secondary-action" id="open-archive-history">查看完整歷史</button>
+          </div>
+        </section>
 
         <div class="button-row">
           <button class="secondary-action" type="button" data-prev>返回</button>
           <button class="primary-action" type="button" id="confirm-employee" disabled>確認並開始量體</button>
         </div>
+        <div class="workspace-only employee-roster" hidden>
+          <div class="roster-heading"><h3>員工列表</h3><span id="roster-count" role="status"></span></div>
+          <div id="employee-roster" class="roster-list" role="group" aria-label="員工列表"></div>
+        </div>
       </section>
 
+      <div class="measurement-content">
+      <div class="workspace-only workspace-profile" hidden>
+        <div class="profile-heading">
+          <h2>員工基本資料</h2>
+          <button type="button" class="secondary-action" id="pin-employee" aria-pressed="false" hidden>置頂員工</button>
+        </div>
+        <p id="workspace-archive-context" class="archive-context" hidden></p>
+        <nav id="garment-tabs" class="product-tabs" aria-label="量體產品" hidden></nav>
+      </div>
+      <div class="measurement-body">
+      <div class="workspace-only workspace-empty" hidden>
+        <h3>請從左側選擇員工</h3>
+        <p>選擇訂單後，可按員工編號或姓名查詢。</p>
+      </div>
       <form id="measure-form">
         <section class="page" data-page="11">
           <div class="section-head"><p>Product Measurement</p><h2>按產品量身</h2></div>
@@ -213,8 +250,8 @@
             <input name="remark" autocomplete="off" />
           </label>
 
-          <div class="notice warning">
-            提交後本次量體記錄將鎖定，不可在頁面內修改；同一員工如需再次量體，請重新查詢並建立新記錄。
+          <div class="notice warning" id="save-notice">
+            請核對本次量體資料後提交。
           </div>
 
           <div class="button-row">
@@ -232,7 +269,38 @@
         <article class="summary-card" id="locked-summary"></article>
         <button class="primary-action" type="button" id="new-record">錄入下一筆</button>
       </section>
+      </div>
+      <footer class="workspace-only workspace-actions" hidden>
+        <p>切換員工會暫存未提交的錄入</p>
+        <button type="button" class="secondary-action" id="workspace-archives">返回檔案列表</button>
+        <button type="button" class="secondary-action" id="workspace-return" hidden>返回量體</button>
+        <button type="button" class="primary-action" id="workspace-save">核對並保存</button>
+      </footer>
+      </div>
+      </div>
 
+      <dialog class="tailor-dialog" id="employee-edit-dialog" aria-labelledby="employee-edit-title">
+        <form class="form" id="employee-edit-form">
+          <h2 id="employee-edit-title">修改員工資料</h2>
+          <div class="field-grid" id="employee-size-fields">
+            <label class="field"><span>身高（cm）</span><input type="number" name="height_cm" step="any" min="0" inputmode="decimal" /></label>
+            <label class="field"><span>體重（kg）</span><input type="number" name="weight_kg" step="any" min="0" inputmode="decimal" /></label>
+          </div>
+          <label class="field" id="employee-department-field"><span>部門</span><select name="department"></select></label>
+          <p class="archive-error" id="employee-edit-error" role="alert" hidden></p>
+          <div class="dialog-actions">
+            <button type="button" class="secondary-action" id="close-employee-edit">取消</button>
+            <button type="submit" class="primary-action">保存資料</button>
+          </div>
+        </form>
+      </dialog>
+      <dialog class="tailor-dialog" id="archive-history-dialog" aria-labelledby="archive-history-title">
+        <div class="archive-heading">
+          <h2 id="archive-history-title">量體檔案歷史</h2>
+          <button type="button" class="secondary-action" id="close-archive-history">關閉</button>
+        </div>
+        <div id="archive-history-list"></div>
+      </dialog>
       <dialog id="appointments-dialog" aria-labelledby="appointments-title">
         <div class="appointment-heading"><h2 id="appointments-title">預約明細</h2><button type="button" class="secondary-action" id="close-appointments">返回量身</button></div>
         <p class="measure-hint">查看名單不會改動正在填寫的量體資料。已取消預約不計入。</p>
@@ -247,11 +315,11 @@
         <p class="measure-hint">已量身：同一訂單及員工於預約當天、登記預約後已有提交記錄；可早於或晚於預約時段。</p>
         <div id="appointment-list"></div>
       </dialog>
-      <div class="toast" id="toast" hidden></div>
+      <div class="toast" id="toast" role="status" hidden></div>
     </main>
 
     <script src="../shared/workflow.js?v=20260916-appointment-names"></script>
-    <script src="./products.js?v=20260919-field-warning"></script>
-    <script src="./app.js?v=20260919-products"></script>
+    <script src="./products.js?v=20261106-employee-archives"></script>
+    <script src="./app.js?v=20261106-employee-archives"></script>
   </body>
 </html>

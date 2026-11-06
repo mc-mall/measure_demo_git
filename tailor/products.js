@@ -6,13 +6,43 @@ window.TailorProducts = (() => {
   const isChoice = f => ['select','multiselect'].includes(f.type);
   const options = f => String(f.options || '').split(/[,，、\n]/).map(v=>v.trim()).filter(Boolean);
   const copy = v => JSON.parse(JSON.stringify(v));
-  function start() {
-    const configured = shouldUseServerApi() ? [] : loadAdminStore()?.products || [];
-    enabled = configured.length > 0 && Boolean(state.employee);
-    products = copy(configured.filter(p=>p.gender === state.employee?.gender));
-    entries = {}; active = 0; expandedField = '';
-    for (const p of products) entries[p.id] = {patternId:'', fields:{}};
+  function start(draft) {
+    if (draft) {
+      ({products, entries, active, enabled, expandedField} = draft);
+    } else {
+      const configured = shouldUseServerApi() ? [] : loadAdminStore()?.products || [];
+      enabled = configured.length > 0 && Boolean(state.employee);
+      products = copy(configured.filter(p=>p.gender === state.employee?.gender));
+      entries = {}; active = 0; expandedField = '';
+      for (const p of products) entries[p.id] = {patternId:'', fields:{}};
+    }
     render(); return enabled;
+  }
+  function draft() {
+    const hasInput = Object.values(entries).some(entry => entry.patternId || Object.values(entry.fields)
+      .some(field => field.body || field.adjustment || field.value));
+    return {products, entries, active, enabled, expandedField, hasInput};
+  }
+  function archiveDraft(record) {
+    const archived = record.product_measurements || [];
+    const products = archived.map(product => {
+      const schema = product.schema_snapshot;
+      if (!schema || !Array.isArray(schema.patterns) || !Array.isArray(schema.fields)
+        || (product.pattern_id && !schema.patterns.some(pattern => pattern.id === product.pattern_id))) {
+        throw new Error("此檔案缺少原始產品或版型配置。");
+      }
+      return copy(schema);
+    });
+    const entries = Object.fromEntries(archived.map((product, index) => [
+      products[index].id,
+      {patternId: product.pattern_id || '', fields: Object.fromEntries((product.fields || []).map(field => [
+        field.field_id,
+        field.type === 'number'
+          ? {mode: field.mode, body: field.body ?? '', adjustment: field.adjustment ?? ''}
+          : {value: field.value ?? ''},
+      ]))},
+    ]));
+    return {products, entries, active: 0, enabled: products.length > 0, expandedField: ''};
   }
   function result(p,f) {
     const entry = entries[p.id], value = entry.fields[f.id] || {};
@@ -131,5 +161,5 @@ window.TailorProducts = (() => {
   });
   document.getElementById('product-prev').addEventListener('click',()=>{if(state.lockedRecord)return;if(active){active--;expandedField='';render();window.scrollTo(0,0);}else setPage(1);});
   document.getElementById('product-next').addEventListener('click',()=>{if(state.lockedRecord)return;const message=validate(active);if(message){render();return showToast(message);}if(active<products.length-1){active++;expandedField='';render();window.scrollTo(0,0);}else{const err=validateAll();if(err)return showToast(err);setPage(9);}});
-  return {start,record,summary,validateAll,enabled:()=>enabled,reset:()=>{products=[];entries={};enabled=false;active=0;expandedField='';root.innerHTML='';}};
+  return {start,draft,archiveDraft,record,summary,validateAll,enabled:()=>enabled,reset:()=>{products=[];entries={};enabled=false;active=0;expandedField='';root.innerHTML='';}};
 })();
