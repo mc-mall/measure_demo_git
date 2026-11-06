@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>MC 量體資料收集</title>
-    <link rel="stylesheet" href="./styles.css?v=20261106-landscape-login" />
+    <link rel="stylesheet" href="./styles.css?v=20261106-dashboard-compact" />
   </head>
   <body>
     <main class="app-shell">
@@ -19,7 +19,10 @@
         <div class="session-chip" id="session-chip">未登入</div>
       </header>
 
-      <div class="appointment-entry" id="appointment-entry" hidden><button type="button" class="secondary-action" id="open-appointments">預約明細 · 查看待量身人員</button></div>
+      <div class="tailor-tools" id="tailor-tools" hidden>
+        <button type="button" class="secondary-action" id="open-measurement-dashboard">量體總覽</button>
+        <button type="button" class="secondary-action" id="open-appointments">預約明細</button>
+      </div>
 
       <ol class="stepper" id="stepper" aria-label="量體步驟">
         <li class="is-current">登入</li>
@@ -301,6 +304,35 @@
         </div>
         <div id="archive-history-list"></div>
       </dialog>
+      <dialog class="tailor-dialog measurement-dashboard" id="measurement-dashboard" aria-labelledby="measurement-dashboard-title">
+        <div class="archive-heading">
+          <h2 id="measurement-dashboard-title">量體總覽</h2>
+          <button type="button" class="secondary-action" id="close-measurement-dashboard">關閉</button>
+        </div>
+        <p class="dashboard-note">按訂單及部門統計，已有有效量體檔案即計為已量體。</p>
+        <div class="field-grid dashboard-filters">
+          <label class="field"><span>訂單 / 項目</span><select id="dashboard-order"></select></label>
+          <label class="field"><span>部門</span><select id="dashboard-department"></select></label>
+          <label class="field"><span>搜尋員工</span><input id="dashboard-query" type="search" placeholder="輸入員工編號或姓名" /></label>
+        </div>
+        <div class="dashboard-summary">
+          <div id="dashboard-stats" class="dashboard-stats" role="group" aria-label="按量體狀態篩選">
+            <button type="button" data-filter="all" aria-pressed="true"><span>總人數</span><strong>0</strong></button>
+            <button type="button" data-filter="pending" aria-pressed="false"><span>待量體</span><strong>0</strong></button>
+            <button type="button" data-filter="done" aria-pressed="false"><span>已量體</span><strong>0</strong></button>
+          </div>
+          <div class="dashboard-progress">
+            <span><span>完成率</span><strong id="dashboard-percent">0%</strong></span>
+            <progress id="dashboard-progress" max="100" value="0" aria-label="量體完成率"></progress>
+          </div>
+        </div>
+        <div class="dashboard-list-heading">
+          <h3>員工名單</h3>
+          <span id="dashboard-list-count" role="status"></span>
+        </div>
+        <ul id="dashboard-list" class="dashboard-list" aria-label="量體狀態名單"></ul>
+        <p id="dashboard-empty" class="roster-empty" hidden></p>
+      </dialog>
       <dialog id="appointments-dialog" aria-labelledby="appointments-title">
         <div class="appointment-heading"><h2 id="appointments-title">預約明細</h2><button type="button" class="secondary-action" id="close-appointments">返回量身</button></div>
         <p class="measure-hint">查看名單不會改動正在填寫的量體資料。已取消預約不計入。</p>
@@ -320,6 +352,6 @@
 
     <script src="../shared/workflow.js?v=20260916-appointment-names"></script>
     <script src="./products.js?v=20261106-employee-archives"></script>
-    <script src="./app.js?v=20261106-employee-archives"></script>
+    <script src="./app.js?v=20261106-dashboard-compact"></script>
   </body>
 </html>

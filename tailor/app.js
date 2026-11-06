@@ -13,6 +13,7 @@ const pinEmployee = document.getElementById("pin-employee");
 const garmentTabs = document.getElementById("garment-tabs");
 const workspaceSave = document.getElementById("workspace-save");
 const workspaceReturn = document.getElementById("workspace-return");
+const tailorTools = document.getElementById("tailor-tools");
 const workspaceScreen = window.matchMedia("(min-width: 900px) and (orientation: landscape)");
 
 const workspace = {
@@ -551,7 +552,7 @@ function setPage(pageId) {
   }
   state.page = pageId;
   if (state.flow.slice(2, -2).includes(pageId)) workspace.entryPage = pageId;
-  document.getElementById("appointment-entry").hidden = pageId === 0 || !state.token || shouldUseServerApi();
+  tailorTools.hidden = pageId === 0 || !state.token || shouldUseServerApi();
   pages.forEach((page) => page.classList.toggle("is-active", Number(page.dataset.page) === pageId));
   const activeIndex = currentFlowIndex(pageId);
   steps.forEach((step, stepIndex) => {
@@ -697,7 +698,6 @@ function isWorkspace() {
 function syncWorkspaceLayout() {
   const shell = document.querySelector(".app-shell");
   const header = shell.querySelector(".app-header");
-  const appointmentEntry = document.getElementById("appointment-entry");
   const active = isWorkspace();
   if (active === shell.classList.contains("is-workspace")) return;
   shell.classList.toggle("is-workspace", active);
@@ -707,14 +707,14 @@ function syncWorkspaceLayout() {
   employeeQuery.required = !active;
   employeeQuery.placeholder = active ? "輸入員工編號或姓名" : "";
   if (active) {
-    header.insertBefore(appointmentEntry, document.getElementById("session-chip"));
+    header.insertBefore(tailorTools, document.getElementById("session-chip"));
     garmentTabs.before(employeeCard);
     document.querySelector(".workspace-empty").after(archivePicker);
     orderSelect.value = state.employee?.order_id || orderSelect.value || (orderSelect.options.length === 2 ? orderSelect.options[1].value : "");
     employeeQuery.value = workspace.query;
     window.scrollTo(0, 0);
   } else {
-    header.after(appointmentEntry);
+    header.after(tailorTools);
     employeeForm.after(employeeCard);
     employeeCard.after(archivePicker);
     garmentTabs.hidden = true;
@@ -724,6 +724,20 @@ function syncWorkspaceLayout() {
 
 function employeeKey(orderId, employeeId) {
   return JSON.stringify([orderId, employeeId]);
+}
+
+function measurementRows(store, orderId) {
+  const orders = new Set((store.orders || []).map(order => order.order_id));
+  const measured = new Set((store.measurements || [])
+    .filter(record => record.employee && !record.archive_removed_at)
+    .map(({employee}) => employeeKey(employee.order_id, employee.employee_id)));
+  const rows = new Map();
+  for (const employee of store.employees || []) {
+    if (!orders.has(employee.order_id) || (orderId && employee.order_id !== orderId)) continue;
+    const key = employeeKey(employee.order_id, employee.employee_id);
+    if (!rows.has(key)) rows.set(key, {employee, measured: measured.has(key)});
+  }
+  return [...rows.values()];
 }
 
 function readWorkspacePins() {
@@ -736,23 +750,20 @@ function readWorkspacePins() {
 
 function renderRoster() {
   const orderId = orderSelect.value;
-  const store = loadAdminStore();
-  const employees = (store?.employees || []).filter(employee => employee.order_id === orderId);
-  const measured = new Set((store?.measurements || [])
-    .filter(record => record.employee?.order_id === orderId)
-    .map(record => record.employee.employee_id));
+  const employees = orderId ? measurementRows(loadAdminStore() || {}, orderId) : [];
   const selected = state.employee?.employee_id;
-  const rows = employees.filter(employee => [employee.employee_id, employee.name]
+  const rows = employees.filter(({employee}) => [employee.employee_id, employee.name]
     .some(value => String(value || "").toLowerCase().includes(workspace.query)))
-    .map(employee => {
+    .map(row => {
+      const {employee} = row;
       const key = employeeKey(orderId, employee.employee_id);
-      return { employee, pinned: workspace.pins.has(key), draft: workspace.drafts.get(key) };
+      return { ...row, pinned: workspace.pins.has(key), draft: workspace.drafts.get(key) };
     }).sort((a, b) => Number(b.pinned) - Number(a.pinned));
   document.getElementById("roster-count").textContent = orderId ? `${rows.length} 人` : "";
   const focusedId = roster.contains(document.activeElement) ? document.activeElement.dataset.employeeId : null;
-  roster.innerHTML = rows.map(({ employee, pinned, draft }) => {
+  roster.innerHTML = rows.map(({ employee, measured, pinned, draft }) => {
     const active = orderId === state.employee?.order_id && employee.employee_id === selected;
-    let status = measured.has(employee.employee_id) ? "已錄入" : "待錄入";
+    let status = measured ? "已錄入" : "待錄入";
     if (active && state.operation && !state.lockedRecord) status = "錄入中";
     else if (draft?.hasInput) status = "草稿";
     return `<button type="button" class="roster-employee" data-employee-id="${escapeHtml(employee.employee_id)}" aria-pressed="${active}">
@@ -1108,6 +1119,9 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
       state.tailorName = tailor?.name || username;
       workspace.pinKey = `mc-tailor-workspace-pins:${username}`;
       readWorkspacePins();
+      dashboardFiltersAccount = username;
+      temporaryDashboardFilters.clear();
+      dashboardWorkspaceOrder = undefined;
     }
     workspace.drafts.clear();
     workspace.query = "";
@@ -1498,6 +1512,108 @@ setPage(0);
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[char]));
 }
+
+const measurementDashboard = document.getElementById("measurement-dashboard");
+const dashboardOrder = document.getElementById("dashboard-order");
+const dashboardDepartment = document.getElementById("dashboard-department");
+const dashboardQuery = document.getElementById("dashboard-query");
+const dashboardStats = document.getElementById("dashboard-stats");
+const dashboardList = document.getElementById("dashboard-list");
+const dashboardEmpty = document.getElementById("dashboard-empty");
+const temporaryDashboardFilters = new Map();
+let dashboardFiltersAccount = "";
+let dashboardWorkspaceOrder;
+
+function dashboardFiltersKey(orderId) {
+  return `mc-tailor-dashboard-filters:${JSON.stringify([dashboardFiltersAccount, orderId])}`;
+}
+
+function readDashboardFilters(orderId) {
+  if (temporaryDashboardFilters.has(orderId)) return temporaryDashboardFilters.get(orderId);
+  try {
+    return JSON.parse(localStorage.getItem(dashboardFiltersKey(orderId))) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDashboardFilters(status) {
+  const orderId = dashboardOrder.value;
+  const filters = {department: dashboardDepartment.value, status: status ?? readDashboardFilters(orderId).status};
+  try {
+    localStorage.setItem(dashboardFiltersKey(orderId), JSON.stringify(filters));
+    temporaryDashboardFilters.delete(orderId);
+  } catch {
+    temporaryDashboardFilters.set(orderId, filters);
+  }
+  renderMeasurementDashboard();
+}
+
+function renderMeasurementDashboard(orderId = dashboardOrder.value) {
+  const store = loadAdminStore() || {};
+  const orders = store.orders || [];
+  dashboardOrder.innerHTML = '<option value="">全部訂單</option>' + orders.map(order =>
+    `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)}${order.company_name ? ` / ${escapeHtml(order.company_name)}` : ""}</option>`).join("");
+  dashboardOrder.value = orders.some(order => order.order_id === orderId) ? orderId : "";
+  const savedFilters = readDashboardFilters(dashboardOrder.value);
+  const dashboardFilter = ["pending", "done"].includes(savedFilters?.status) ? savedFilters.status : "all";
+  const selectedDepartment = savedFilters?.department || "";
+  const orderRows = measurementRows(store, dashboardOrder.value).map(row => ({
+    ...row,
+    department: String(row.employee.unit_name || "").trim(),
+  }));
+  const departments = new Map(orderRows.map(({department}) => [`unit:${department}`, department]));
+  const department = departments.get(selectedDepartment);
+  dashboardDepartment.replaceChildren(new Option("全部部門", ""), ...Array.from(departments, ([value, name]) => new Option(name || "未分配部門", value)));
+  dashboardDepartment.value = department === undefined ? "" : selectedDepartment;
+  const rows = department === undefined ? orderRows : orderRows.filter(row => row.department === department);
+  const done = rows.filter(row => row.measured).length;
+  const counts = { all: rows.length, pending: rows.length - done, done };
+  for (const button of dashboardStats.querySelectorAll("button")) {
+    const filter = button.dataset.filter;
+    button.setAttribute("aria-pressed", String(filter === dashboardFilter));
+    button.querySelector("strong").textContent = counts[filter];
+  }
+  const percent = rows.length ? Math.floor(done * 100 / rows.length) : 0;
+  document.getElementById("dashboard-percent").textContent = `${percent}%`;
+  document.getElementById("dashboard-progress").value = percent;
+
+  const query = dashboardQuery.value.trim().toLowerCase();
+  const visible = rows.filter(({employee, measured}) =>
+    (dashboardFilter === "all" || measured === (dashboardFilter === "done")) &&
+    [employee.employee_id, employee.name].some(value => String(value || "").toLowerCase().includes(query)));
+  document.getElementById("dashboard-list-count").textContent = `${visible.length} 人`;
+  dashboardList.innerHTML = visible.map(({employee, measured, department}) => {
+    const details = `${employee.order_id} · ${department || "未分配部門"}`;
+    return `<li data-status="${measured ? "done" : "pending"}" title="${escapeHtml(details)}">
+      <strong>${escapeHtml(employee.name || "未填寫姓名")}</strong>
+      <small>${escapeHtml(employee.employee_id)}</small>
+      <span class="dashboard-status">${measured ? "已量體" : "待量體"}</span>
+      <span class="dashboard-status-icon" aria-hidden="true">${measured ? "✓" : "○"}</span>
+    </li>`;
+  }).join("");
+  dashboardEmpty.hidden = visible.length > 0;
+  dashboardEmpty.textContent = rows.length ? "沒有符合篩選條件的員工。" : "所選範圍暫無員工。";
+}
+
+document.getElementById("open-measurement-dashboard").addEventListener("click", () => {
+  const orderId = dashboardWorkspaceOrder === orderSelect.value ? dashboardOrder.value : orderSelect.value;
+  dashboardWorkspaceOrder = orderSelect.value;
+  dashboardQuery.value = "";
+  renderMeasurementDashboard(orderId);
+  measurementDashboard.showModal();
+  measurementDashboard.scrollTop = 0;
+});
+document.getElementById("close-measurement-dashboard").addEventListener("click", () => measurementDashboard.close());
+dashboardOrder.addEventListener("change", () => renderMeasurementDashboard());
+dashboardDepartment.addEventListener("change", () => saveDashboardFilters());
+dashboardQuery.addEventListener("input", () => renderMeasurementDashboard());
+dashboardStats.addEventListener("click", event => {
+  const button = event.target.closest("button[data-filter]");
+  if (!button) return;
+  saveDashboardFilters(button.dataset.filter);
+});
+
 // Read-only appointment companion; never changes employee selection or form state.
 function appointmentTime(value) {
   const raw = String(value || "").trim().replace(" ", "T");
@@ -1558,8 +1674,11 @@ document.getElementById("appointments-today").addEventListener("click", () => {
   renderAppointments();
 });
 window.addEventListener("storage", event => {
-  if ((event.key === adminStoreKey || event.key === null) && appointmentsDialog.open) renderAppointments();
-  if ((event.key === adminStoreKey || event.key === null) && !archivePicker.hidden) renderArchivePicker();
+  if (event.key === adminStoreKey || event.key === null) {
+    if (measurementDashboard.open) renderMeasurementDashboard();
+    if (appointmentsDialog.open) renderAppointments();
+    if (!archivePicker.hidden) renderArchivePicker();
+  }
   if (!isWorkspace()) return;
   if (event.key === workspace.pinKey || event.key === null) {
     readWorkspacePins();
@@ -1568,4 +1687,7 @@ window.addEventListener("storage", event => {
     renderRoster();
   }
 });
-window.addEventListener("focus", () => { if (appointmentsDialog.open) renderAppointments(); });
+window.addEventListener("focus", () => {
+  if (measurementDashboard.open) renderMeasurementDashboard();
+  if (appointmentsDialog.open) renderAppointments();
+});
