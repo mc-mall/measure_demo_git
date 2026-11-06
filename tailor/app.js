@@ -1,6 +1,27 @@
 const pages = [...document.querySelectorAll(".page")];
 const steps = [...document.querySelectorAll("#stepper li")];
 const toast = document.getElementById("toast");
+const employeeForm = document.getElementById("employee-form");
+const orderSelect = document.getElementById("order-select");
+const employeeQuery = employeeForm.elements.employee_id;
+const employeeCard = document.getElementById("employee-card");
+const archivePicker = document.getElementById("archive-picker");
+const archiveOptions = document.getElementById("archive-options");
+const measureForm = document.getElementById("measure-form");
+const roster = document.getElementById("employee-roster");
+const pinEmployee = document.getElementById("pin-employee");
+const garmentTabs = document.getElementById("garment-tabs");
+const workspaceSave = document.getElementById("workspace-save");
+const workspaceReturn = document.getElementById("workspace-return");
+const workspaceScreen = window.matchMedia("(min-width: 900px) and (orientation: landscape)");
+
+const workspace = {
+  drafts: new Map(),
+  pins: new Set(),
+  pinKey: "",
+  query: "",
+  entryPage: null,
+};
 
 const state = {
   page: 0,
@@ -8,6 +29,8 @@ const state = {
   token: "",
   tailorName: "",
   employee: null,
+  archiveId: "",
+  operation: null,
   lockedRecord: null,
   flow: [0, 1, 7, 2, 3, 4, 10, 9, 8],
 };
@@ -94,14 +117,14 @@ async function loadOrders() {
     return data.orders || [];
   }
   const store = loadAdminStore();
-  return store?.orders?.length ? store.orders : mockOrders();
+  return store?.orders || mockOrders();
 }
 
 async function renderOrderOptions() {
   const select = document.getElementById("order-select");
   try {
     const orders = await loadOrders();
-    select.innerHTML = `<option value="">請選擇訂單</option>${orders.map((order) => `<option value="${order.order_id}">${order.order_id}${order.company_name ? ` / ${order.company_name}` : ""}</option>`).join("")}`;
+    select.innerHTML = `<option value="">請選擇訂單</option>${orders.map((order) => `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)}${order.company_name ? ` / ${escapeHtml(order.company_name)}` : ""}</option>`).join("")}`;
   } catch (error) {
     select.innerHTML = `<option value="">訂單讀取失敗</option>`;
     showToast(error.message);
@@ -122,10 +145,10 @@ function getAdminEmployee(orderId, employeeId) {
     department: employee.unit_name,
     branch: order?.company_name || employee.company_name || "-",
     phone: employee.phone || "",
+    email: employee.email || "",
     height_cm: employee.height_cm || "",
     weight_kg: employee.weight_kg || "",
     wear_type: employee.gender === "女" ? "female" : "male",
-    measurement_list: store.measurements?.filter((item) => item.employee?.employee_id === employee.employee_id && item.employee?.order_id === employee.order_id) || [],
   };
 }
 
@@ -458,7 +481,7 @@ function renderFields() {
     const fields = getFieldsForGroup(group);
     const target = document.getElementById(`${group}-fields`);
     target.innerHTML = fields.map(([name, label, type, , options]) => {
-      const fieldId = `field-${name}`;
+      const fieldId = `field-${group}-${name}`;
       const note = getFieldNote(group, name);
       const noteHtml = note ? `<small class="field-note">${note}</small>` : "";
       const required = isRequiredField(name);
@@ -488,9 +511,9 @@ function renderFields() {
   });
 }
 
-function configureFlowForEmployee() {
+function configureFlowForEmployee(productDraft) {
   const isFemale = isFemaleEmployee();
-  const configured = TailorProducts.start();
+  const configured = TailorProducts.start(productDraft);
   state.flow = isFemale ? [0, 1, 2, 3, 5, 6, 10, 9, 8] : [0, 1, 2, 3, 10, 9, 8];
   if (configured) state.flow = [0, 1, 11, 9, 8];
   const labels = configured ? ["登入", "基本資料", "產品量身", "確認提交", "完成"] : isFemale
@@ -521,7 +544,13 @@ function currentFlowIndex(pageId = state.page) {
 }
 
 function setPage(pageId) {
+  if (pageId === 1 && !shouldUseServerApi()) {
+    rememberWorkspaceEmployee();
+    state.operation = null;
+    state.lockedRecord = null;
+  }
   state.page = pageId;
+  if (state.flow.slice(2, -2).includes(pageId)) workspace.entryPage = pageId;
   document.getElementById("appointment-entry").hidden = pageId === 0 || !state.token || shouldUseServerApi();
   pages.forEach((page) => page.classList.toggle("is-active", Number(page.dataset.page) === pageId));
   const activeIndex = currentFlowIndex(pageId);
@@ -530,6 +559,18 @@ function setPage(pageId) {
     step.classList.toggle("is-done", stepIndex < activeIndex);
   });
   if (pageId === 9) renderSummary(document.getElementById("summary-card"), buildRecord());
+  syncWorkspaceLayout();
+  archivePicker.hidden = pageId !== 1 || !state.employee || shouldUseServerApi();
+  if (!archivePicker.hidden) renderArchivePicker();
+  document.getElementById("new-record").textContent = shouldUseServerApi() ? "錄入下一筆" : "返回檔案列表";
+  document.getElementById("save-notice").textContent = state.operation?.mode === "edit"
+    ? `保存後將更新 V${state.operation.version}。`
+    : "保存後將建立一筆新量體記錄。";
+  if (isWorkspace()) {
+    renderWorkspace();
+    document.querySelector(".measurement-body").scrollTop = 0;
+    return;
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -575,6 +616,7 @@ function normalizeEmployee(data, orderId, employeeId) {
     department: data.department || data.division || "-",
     branch: data.branch || data.store || data.row_name || "-",
     phone: data.phone || "",
+    email: data.email || "",
     height_cm: data.height_cm || data.heightCm || "",
     weight_kg: data.weight_kg || data.weightKg || "",
     wear_type: data.wear_type || data.cloth_type || "",
@@ -583,18 +625,267 @@ function normalizeEmployee(data, orderId, employeeId) {
 }
 
 function renderEmployee(employee) {
-  const card = document.getElementById("employee-card");
-  card.hidden = false;
-  card.innerHTML = `
-    <div class="info-grid">
-      <div><span>員工編號</span><strong>${employee.employee_id}</strong></div>
-      <div><span>姓名</span><strong>${employee.customer_name || "-"}</strong></div>
-      <div><span>性別</span><strong>${employee.gender}</strong></div>
-      <div><span>身高 / 體重</span><strong>${employee.height_cm || "-"} cm / ${employee.weight_kg || "-"} kg</strong></div>
-      <div><span>分區</span><strong>${employee.department}</strong></div>
-      <div><span>行名</span><strong>${employee.branch}</strong></div>
-    </div>
-  `;
+  const rows = [
+    ["姓名", employee.customer_name],
+    ["員工編號", employee.employee_id],
+    ["性別", employee.gender],
+    ["身高", employee.height_cm && `${employee.height_cm} cm`],
+    ["體重", employee.weight_kg && `${employee.weight_kg} kg`],
+    ["部門", employee.department],
+    ["電話", employee.phone],
+    ["郵箱", employee.email, "employee-email"],
+    ["行名", employee.branch],
+  ];
+  employeeCard.hidden = false;
+  employeeCard.innerHTML = `<div class="info-grid">${rows.map(([label, value, className]) => `<div${className ? ` class="${className}"` : ""}><span>${label}</span><strong>${escapeHtml(value || "—")}</strong></div>`).join("")}</div>`
+    + (shouldUseServerApi() ? "" : `<div class="employee-edit-actions">
+      <button type="button" class="secondary-action" data-edit-profile="size">修改身高體重</button>
+      <button type="button" class="secondary-action" data-edit-profile="department">修改部門</button>
+    </div>`);
+}
+
+function matchesEmployee(record, employee) {
+  return record.employee?.order_id === employee.order_id && record.employee?.employee_id === employee.employee_id;
+}
+
+function archiveEntries(store, employee) {
+  const records = (store?.measurements || []).filter(record => matchesEmployee(record, employee));
+  // Older tailor records have no version. Keep existing numbers, including removed versions.
+  const used = new Set(records.map(record => Number(record.version)).filter(version => Number.isFinite(version) && version > 0));
+  let nextLegacy = 1;
+  return records.reverse().map(record => {
+    let version = Number(record.version);
+    if (!Number.isFinite(version) || version <= 0) {
+      while (used.has(nextLegacy)) nextLegacy++;
+      version = nextLegacy++;
+    }
+    return {record, version};
+  }).sort((a, b) => b.version - a.version);
+}
+
+function visibleArchives() {
+  return archiveEntries(loadAdminStore(), state.employee).filter(({record}) => !record.archive_removed_at);
+}
+
+function archiveMetadata({record, version}) {
+  return `<span><small>版本號</small><strong>V${version}</strong></span>
+    <span><small>建立時間</small><strong>${escapeHtml(record.created_at || record.measured_at || "—")}</strong></span>
+    <span><small>裁縫師</small><strong>${escapeHtml(record.tailor_name || "—")}</strong></span>`;
+}
+
+function renderArchivePicker() {
+  const entries = visibleArchives();
+  if (!entries.some(({record}) => record.measurement_id === state.archiveId)) {
+    state.archiveId = entries[0]?.record.measurement_id || "";
+  }
+  document.getElementById("archive-count").textContent = `共 ${entries.length} 個版本`;
+  archiveOptions.innerHTML = entries.map(entry => `<label class="archive-option">
+    <input type="radio" name="archive-version" value="${escapeHtml(entry.record.measurement_id)}" ${entry.record.measurement_id === state.archiveId ? "checked" : ""} />
+    ${archiveMetadata(entry)}
+  </label>`).join("") || '<p class="roster-empty">目前沒有量體檔案，可錄入第一份。</p>';
+  for (const mode of ["edit", "copy"]) {
+    archivePicker.querySelector(`[data-archive-action="${mode}"]`).disabled = !state.archiveId;
+  }
+  archivePicker.querySelector('[data-archive-action="resume"]').hidden = !workspace.drafts.has(employeeKey(state.employee.order_id, state.employee.employee_id));
+  document.getElementById("open-archive-history").disabled = !entries.length;
+}
+
+function isWorkspace() {
+  return workspaceScreen.matches && state.page !== 0 && Boolean(state.token) && !shouldUseServerApi();
+}
+
+function syncWorkspaceLayout() {
+  const shell = document.querySelector(".app-shell");
+  const header = shell.querySelector(".app-header");
+  const appointmentEntry = document.getElementById("appointment-entry");
+  const active = isWorkspace();
+  if (active === shell.classList.contains("is-workspace")) return;
+  shell.classList.toggle("is-workspace", active);
+  document.querySelectorAll(".workspace-only").forEach(element => { element.hidden = !active; });
+  document.getElementById("stepper").hidden = active;
+  document.getElementById("employee-query-label").textContent = active ? "查詢員工" : "員工編號";
+  employeeQuery.required = !active;
+  employeeQuery.placeholder = active ? "輸入員工編號或姓名" : "";
+  if (active) {
+    header.insertBefore(appointmentEntry, document.getElementById("session-chip"));
+    garmentTabs.before(employeeCard);
+    document.querySelector(".workspace-empty").after(archivePicker);
+    orderSelect.value = state.employee?.order_id || orderSelect.value || (orderSelect.options.length === 2 ? orderSelect.options[1].value : "");
+    employeeQuery.value = workspace.query;
+    window.scrollTo(0, 0);
+  } else {
+    header.after(appointmentEntry);
+    employeeForm.after(employeeCard);
+    employeeCard.after(archivePicker);
+    garmentTabs.hidden = true;
+    employeeQuery.value = state.employee?.employee_id || "";
+  }
+}
+
+function employeeKey(orderId, employeeId) {
+  return JSON.stringify([orderId, employeeId]);
+}
+
+function readWorkspacePins() {
+  try {
+    workspace.pins = new Set(JSON.parse(localStorage.getItem(workspace.pinKey) || "[]"));
+  } catch {
+    workspace.pins = new Set();
+  }
+}
+
+function renderRoster() {
+  const orderId = orderSelect.value;
+  const store = loadAdminStore();
+  const employees = (store?.employees || []).filter(employee => employee.order_id === orderId);
+  const measured = new Set((store?.measurements || [])
+    .filter(record => record.employee?.order_id === orderId)
+    .map(record => record.employee.employee_id));
+  const selected = state.employee?.employee_id;
+  const rows = employees.filter(employee => [employee.employee_id, employee.name]
+    .some(value => String(value || "").toLowerCase().includes(workspace.query)))
+    .map(employee => {
+      const key = employeeKey(orderId, employee.employee_id);
+      return { employee, pinned: workspace.pins.has(key), draft: workspace.drafts.get(key) };
+    }).sort((a, b) => Number(b.pinned) - Number(a.pinned));
+  document.getElementById("roster-count").textContent = orderId ? `${rows.length} 人` : "";
+  const focusedId = roster.contains(document.activeElement) ? document.activeElement.dataset.employeeId : null;
+  roster.innerHTML = rows.map(({ employee, pinned, draft }) => {
+    const active = orderId === state.employee?.order_id && employee.employee_id === selected;
+    let status = measured.has(employee.employee_id) ? "已錄入" : "待錄入";
+    if (active && state.operation && !state.lockedRecord) status = "錄入中";
+    else if (draft?.hasInput) status = "草稿";
+    return `<button type="button" class="roster-employee" data-employee-id="${escapeHtml(employee.employee_id)}" aria-pressed="${active}">
+      <span class="roster-name">${escapeHtml(employee.name || "未填寫姓名")}</span>
+      <span class="roster-id">${escapeHtml(employee.employee_id)}</span>
+      ${pinned ? '<span class="roster-pin" aria-label="已置頂" title="已置頂">★</span>' : ""}
+      <span class="roster-status" data-status="${status}">${status}</span>
+    </button>`;
+  }).join("") || `<p class="roster-empty">${!orderId ? "請先選擇訂單。" : workspace.query ? "沒有符合查詢條件的員工。" : "此訂單暫無員工。"}</p>`;
+  if (focusedId) [...roster.querySelectorAll("button")].find(button => button.dataset.employeeId === focusedId)?.focus({ preventScroll: true });
+}
+
+function renderWorkspace() {
+  renderRoster();
+  const employee = state.employee;
+  const pinned = employee && workspace.pins.has(employeeKey(employee.order_id, employee.employee_id));
+  pinEmployee.hidden = !employee;
+  pinEmployee.setAttribute("aria-pressed", String(Boolean(pinned)));
+  pinEmployee.textContent = pinned ? "★ 取消置頂" : "☆ 置頂員工";
+  document.querySelector(".workspace-empty").hidden = Boolean(employee);
+  document.querySelector(".workspace-actions").hidden = !state.operation || state.page === 8;
+  const context = document.getElementById("workspace-archive-context");
+  context.hidden = !state.operation;
+  context.textContent = archiveOperationLabel();
+  workspaceReturn.hidden = state.page !== 9;
+  workspaceSave.textContent = state.page === 9 ? "保存錄入" : "核對並保存";
+  garmentTabs.hidden = !state.operation || TailorProducts.enabled() || state.page === 8;
+  garmentTabs.innerHTML = garmentTabs.hidden ? "" : state.flow.slice(2, -2).map(page => {
+    const label = { 2: "上衣", 3: "褲裝", 5: "一步裙", 6: "連衣裙", 10: "其它產品" }[page];
+    return `<button type="button" data-garment-page="${page}" class="${state.page === page ? "is-active" : ""}" aria-pressed="${state.page === page}">${label}</button>`;
+  }).join("");
+}
+
+function rememberWorkspaceEmployee() {
+  if (!state.employee || !state.operation || state.lockedRecord) return;
+  const fields = workspaceDraftFields();
+  const values = new Map();
+  for (const field of fields) {
+    if ((field.type === "checkbox" || field.type === "radio") ? !field.checked : !field.value) continue;
+    if (!values.has(field.name)) values.set(field.name, []);
+    values.get(field.name).push(field.value);
+  }
+  const products = TailorProducts.draft();
+  const hasInput = values.size > 0 || products.hasInput;
+  workspace.drafts.set(employeeKey(state.employee.order_id, state.employee.employee_id), {
+    values, products, hasInput, operation: state.operation, entryPage: workspace.entryPage, page: state.page,
+  });
+}
+
+function workspaceDraftFields() {
+  return [...measureForm.elements].filter(field => field.name && !field.closest("#configured-products")
+    && (field.name === "body_notes" || state.flow.includes(Number(field.closest(".page")?.dataset.page))));
+}
+
+function selectWorkspaceEmployee(employeeId) {
+  const orderId = orderSelect.value;
+  if (state.employee?.order_id === orderId && state.employee.employee_id === employeeId) return;
+  const raw = getAdminEmployee(orderId, employeeId);
+  if (!raw) { renderRoster(); showToast("未找到該員工"); return; }
+  toast.hidden = true;
+  openLocalEmployee(raw, orderId, employeeId);
+}
+
+function openLocalEmployee(raw, orderId, employeeId) {
+  rememberWorkspaceEmployee();
+  state.employee = normalizeEmployee(raw, orderId, employeeId);
+  state.archiveId = "";
+  state.operation = null;
+  state.lockedRecord = null;
+  workspace.entryPage = null;
+  document.getElementById("confirm-employee").hidden = true;
+  renderEmployee(state.employee);
+  setPage(1);
+}
+
+function archiveOperationLabel() {
+  const operation = state.operation;
+  if (!operation) return "";
+  if (operation.mode === "edit") return `修改 V${operation.version}`;
+  if (operation.mode === "copy") return `複製 V${operation.version} 並另存新檔案`;
+  return "錄入新檔案";
+}
+
+function archivedRemark(record) {
+  if (record.remark != null) return record.remark;
+  const remark = record.final_remark || "";
+  const notes = record.body_notes || [];
+  if (!notes.length) return remark;
+  const prefix = `特殊體型：${notes.join("、")}`;
+  return remark === prefix ? "" : remark.startsWith(`${prefix}；`) ? remark.slice(prefix.length + 1) : remark;
+}
+
+function startArchiveOperation(mode) {
+  const key = employeeKey(state.employee.order_id, state.employee.employee_id);
+  const savedDraft = workspace.drafts.get(key);
+  const draft = mode === "resume" ? savedDraft : null;
+  const entry = mode === "edit" || mode === "copy" ? visibleArchives().find(({record}) => record.measurement_id === state.archiveId) : null;
+  if ((mode === "edit" || mode === "copy") && !entry) {
+    renderArchivePicker();
+    showToast("請重新選擇量體檔案");
+    return;
+  }
+  if (!draft && savedDraft?.hasInput && !window.confirm("開始新的操作將清除這位員工的未保存草稿。是否繼續？")) return;
+  const source = entry?.record;
+  let products;
+  try {
+    products = draft?.products || (source ? TailorProducts.archiveDraft(source) : undefined);
+  } catch (error) {
+    showToast(error.message);
+    return;
+  }
+  const values = draft?.values || new Map();
+  if (source) {
+    for (const [name, value] of Object.entries(source.measurements || {})) values.set(name, [String(value ?? "")]);
+    values.set("remark", [archivedRemark(source)]);
+    values.set("body_notes", source.body_notes || []);
+  }
+  workspace.drafts.delete(key);
+  state.operation = draft?.operation || {mode, source, version: entry?.version};
+  state.lockedRecord = null;
+  workspace.entryPage = draft?.entryPage || null;
+  measureForm.reset();
+  configureFlowForEmployee(products);
+  renderFields();
+  for (const field of workspaceDraftFields()) {
+    const fieldValues = values.get(field.name);
+    if (!fieldValues) continue;
+    if (field.type === "checkbox") field.checked = fieldValues.flatMap(value => value.split(/[、，,]/)).includes(field.value);
+    else if (field.type === "radio") field.checked = fieldValues.includes(field.value);
+    else field.value = fieldValues[0] || "";
+  }
+  updateConditionalFields();
+  setPage(state.flow.includes(draft?.page) ? draft.page : state.flow[2]);
 }
 
 function getValue(name) {
@@ -617,7 +908,7 @@ function combinedBodyNotes(values = {}) {
   const notes = selectedBodyNotes();
   ["suit_body_notes", "pants_body_notes"].forEach((key) => {
     if (!values[key]) return;
-    values[key].split("、").forEach((note) => {
+    String(values[key]).split(/[、，,]/).forEach((note) => {
       if (note && !notes.includes(note)) notes.push(note);
     });
   });
@@ -668,7 +959,10 @@ function localNowWithSeconds() {
 function validateGroup(group) {
   const missing = getFieldsForGroup(group).find(([name]) => {
     if (!isFieldActive(name)) return false;
-    if (isRequiredField(name) && !getValue(name)) return true;
+    if (isRequiredField(name) && !getValue(name)) {
+      if (state.operation?.mode === "edit" && !state.operation.source.measurements?.[name]) return false;
+      return true;
+    }
     if (name === "suit_belly" && !getValue(name)) return true;
     return false;
   });
@@ -699,23 +993,39 @@ function activeGarmentGroups() {
 }
 
 function buildRecord() {
-  const values = {};
+  const source = state.operation?.source;
+  const values = {...source?.measurements};
   activeGarmentGroups().forEach((group) => {
-    getFieldsForGroup(group).forEach(([name]) => {
-      if (!isFieldActive(name)) return;
+    getFieldsForGroup(group).forEach(([name, , type]) => {
       const value = getValue(name);
-      if (value) values[name] = value;
+      const choices = radioOptions[type] || selectOptions[type];
+      const preserveLegacyChoice = choices && !value && values[name] && !choices.includes(String(values[name]));
+      if (!preserveLegacyChoice) delete values[name];
+      if (isFieldActive(name) && value) values[name] = value;
     });
   });
+  const products = TailorProducts.enabled() ? TailorProducts.record() : {};
+  for (const product of products.product_measurements || []) {
+    for (const field of product.fields) delete values[`${product.product_id}.${field.field_id}`];
+  }
   const bodyNotes = combinedBodyNotes(values);
+  const representedNotes = new Set([
+    ...[...measureForm.querySelectorAll('[name="body_notes"]')].map(field => field.value),
+    ...String(source?.measurements?.suit_body_notes || "").split(/[、，,]/),
+    ...String(source?.measurements?.pants_body_notes || "").split(/[、，,]/),
+  ]);
+  for (const note of source?.body_notes || []) {
+    if (!representedNotes.has(note) && !bodyNotes.includes(note)) bodyNotes.push(note);
+  }
   const remark = getValue("remark");
+  const {measurement_list, ...employee} = state.employee;
   return {
     locked: Boolean(state.lockedRecord),
     tailor_name: state.tailorName,
     measured_at: state.lockedRecord?.measured_at || "",
-    employee: state.employee,
-    measurements: values,
-    ...(TailorProducts.enabled() ? TailorProducts.record() : {}),
+    employee: shouldUseServerApi() ? state.employee : employee,
+    ...products,
+    measurements: {...values, ...products.measurements},
     body_notes: bodyNotes,
     remark,
     final_remark: [bodyNotes.length ? `特殊體型：${bodyNotes.join("、")}` : "", remark].filter(Boolean).join("；"),
@@ -755,17 +1065,22 @@ function renderSummary(target, record) {
     ["行名", record.employee.branch],
     ["特殊體型", record.body_notes.length ? record.body_notes.join("、") : "未選擇"],
   ];
-  target.innerHTML = `<div class="summary-grid">${rows.map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>`;
-  target.innerHTML += TailorProducts.summary(record);
+  if (record.version || state.operation) rows.unshift(["量體檔案", record.version ? `V${record.version}` : archiveOperationLabel()]);
+  const fields = activeGarmentGroups().flatMap(getFieldsForGroup).filter(([name]) => record.measurements[name]);
+  const measurements = fields.length ? `<section class="product-summary"><h3>本次錄入</h3>${fields.map(([name, label, type]) => `<div><span>${label}</span><strong>${escapeHtml(record.measurements[name])}${type === "number" || type === "signed_number" ? " cm" : ""}</strong></div>`).join("")}</section>` : "";
+  target.innerHTML = `<div class="summary-grid">${rows.map(([k, v]) => `<div><span>${k}</span><strong>${escapeHtml(v)}</strong></div>`).join("")}</div>` + measurements + TailorProducts.summary(record);
 }
 
 function resetForNextRecord() {
   TailorProducts.reset();
   state.employee = null;
+  state.archiveId = "";
+  state.operation = null;
   state.lockedRecord = null;
-  document.getElementById("employee-card").hidden = true;
+  workspace.entryPage = null;
+  employeeCard.hidden = true;
   document.getElementById("confirm-employee").disabled = true;
-  document.getElementById("measure-form").reset();
+  measureForm.reset();
   updateConditionalFields();
   setPage(1);
 }
@@ -786,26 +1101,37 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
       state.token = data.jwt || "";
       state.tailorName = data.user_name || username;
     } else {
-      const store = loadAdminStore();
+      const store = loadAdminStore() || MeasureWorkflow.read();
       const tailor = store?.tailors?.find((item) => item.username === username);
       if (store && !tailor) throw new Error("未找到該裁縫師賬號");
       state.token = "mock-token";
       state.tailorName = tailor?.name || username;
+      workspace.pinKey = `mc-tailor-workspace-pins:${username}`;
+      readWorkspacePins();
     }
+    workspace.drafts.clear();
+    workspace.query = "";
+    employeeQuery.value = "";
     document.getElementById("session-chip").textContent = state.tailorName;
     await renderOrderOptions();
     showToast("登入成功");
-    setPage(1);
+    resetForNextRecord();
   } catch (error) {
     showToast(`登入失敗：${error.message}`);
   }
 });
 
-document.getElementById("employee-form").addEventListener("submit", async (event) => {
+employeeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
   const orderId = String(form.get("order_id") || "").trim();
   const employeeId = String(form.get("employee_id") || "").trim();
+  if (isWorkspace()) {
+    workspace.query = employeeId.toLowerCase();
+    renderRoster();
+    roster.scrollTop = 0;
+    return;
+  }
 
   try {
     const raw = shouldUseServerApi()
@@ -813,18 +1139,26 @@ document.getElementById("employee-form").addEventListener("submit", async (event
           method: "POST",
           body: JSON.stringify({ order_id: orderId, employee_id: employeeId }),
         })
-      : getAdminEmployee(orderId, employeeId) || mockEmployees[employeeId];
+      : getAdminEmployee(orderId, employeeId);
     if (!raw || (!shouldUseServerApi() && raw.order_id !== orderId)) throw new Error("未找到該員工");
+    if (!shouldUseServerApi()) {
+      openLocalEmployee(raw, orderId, employeeId);
+      return;
+    }
+    measureForm.reset();
+    workspace.entryPage = null;
     state.employee = normalizeEmployee(raw, orderId, employeeId);
     configureFlowForEmployee();
     renderFields();
     renderEmployee(state.employee);
+    document.getElementById("confirm-employee").hidden = false;
     document.getElementById("confirm-employee").disabled = false;
     showToast("已匹配員工資料，請確認");
   } catch (error) {
     state.employee = null;
     document.getElementById("employee-card").hidden = true;
     document.getElementById("confirm-employee").disabled = true;
+    archivePicker.hidden = true;
     showToast(`查詢失敗：${error.message}`);
   }
 });
@@ -871,6 +1205,14 @@ steps.forEach((step) => {
       showToast("請先查詢並確認員工資料。");
       return;
     }
+    if (targetPage > 1 && !shouldUseServerApi() && !state.operation) {
+      showToast("請先選擇量體檔案操作。");
+      return;
+    }
+    if (targetPage === 8 && !state.lockedRecord) {
+      showToast("請先提交量體資料。");
+      return;
+    }
     if (Number.isInteger(targetPage)) setPage(targetPage);
   };
   step.addEventListener("click", jumpToStep);
@@ -881,11 +1223,10 @@ steps.forEach((step) => {
   });
 });
 
-document.getElementById("submit-measure").addEventListener("click", async () => {
-  if (state.lockedRecord || !state.employee) return;
+function validateMeasurement() {
   if (TailorProducts.enabled()) {
     const error = TailorProducts.validateAll();
-    if (error) { showToast(error); setPage(11); return; }
+    if (error) { showToast(error); setPage(11); return false; }
   }
   const groupPageMap = { suit: 2, pants: 3, shirt: 4, skirt: 5, dress: 6, other: 10 };
   for (const group of activeGarmentGroups()) {
@@ -893,13 +1234,74 @@ document.getElementById("submit-measure").addEventListener("click", async () => 
     if (error) {
       showToast(error);
       setPage(groupPageMap[group]);
-      return;
+      return false;
     }
   }
+  return true;
+}
 
+function showLockedRecord() {
+  const {version, measurement_id} = state.lockedRecord;
+  document.getElementById("locked-message").textContent = version ? `V${version} 已保存 · ${measurement_id}` : `量體記錄：${measurement_id}`;
+  renderSummary(document.getElementById("locked-summary"), state.lockedRecord);
+}
+
+function archiveContent(record) {
+  return JSON.stringify([record.measurements, record.product_measurements, record.body_notes, record.remark, record.final_remark, record.updated_at]);
+}
+
+function saveLocalMeasurement(record, timeFields, measurementId) {
+  const store = loadAdminStore();
+  const employee = store?.employees?.find(item => item.order_id === record.employee.order_id && item.employee_id === record.employee.employee_id);
+  if (!employee) throw new Error("此員工已移除，請重新查詢。");
+  const entries = archiveEntries(store, employee);
+  const {mode, source} = state.operation;
+  const original = source && entries.find(entry => entry.record.measurement_id === source.measurement_id);
+  if (source && (!original || original.record.archive_removed_at || original.version !== state.operation.version
+    || archiveContent(original.record) !== archiveContent(source))) {
+    throw new Error("所選檔案已有變更，請返回檔案列表重新選擇。");
+  }
+  for (const entry of entries) entry.record.version = entry.version;
+  const now = timeFields.measured_at;
+  let saved;
+  if (mode === "edit") {
+    const existing = original.record;
+    Object.assign(existing, {
+      measurements: record.measurements,
+      ...(record.product_measurements ? {product_measurements: record.product_measurements, measurement_labels: record.measurement_labels} : {}),
+      body_notes: record.body_notes,
+      remark: record.remark,
+      final_remark: record.final_remark,
+      updated_at: now,
+      updated_by: state.tailorName,
+      locked: true,
+    });
+    saved = existing;
+  } else {
+    const version = Math.max(0, ...entries.map(entry => entry.version)) + 1;
+    saved = {
+      ...record, ...timeFields, measurement_id: measurementId, version, created_at: now, locked: true,
+      ...(mode === "copy" ? {source_measurement_id: source.measurement_id} : {}),
+      employee: {...record.employee, height_cm: employee.height_cm || "", weight_kg: employee.weight_kg || "", department: employee.unit_name || "-"},
+    };
+    store.measurements ||= [];
+    store.measurements.unshift(saved);
+  }
+  saveAdminStore(store);
+  workspace.drafts.delete(employeeKey(employee.order_id, employee.employee_id));
+  state.archiveId = saved.measurement_id;
+  return saved;
+}
+
+async function submitMeasurement() {
+  if (state.lockedRecord || !state.employee || (!shouldUseServerApi() && !state.operation) || !validateMeasurement()) return;
+  const submitButton = document.getElementById("submit-measure");
+  if (submitButton.disabled) return;
+  submitButton.disabled = true;
+  workspaceSave.disabled = true;
   const record = buildRecord();
   try {
-    let measurementId = `LOCAL-${Date.now()}`;
+    let measurementId = `LOCAL-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     let serverTimeFields = {};
     if (shouldUseServerApi()) {
       const data = await request("/tailor/measure_body", {
@@ -925,17 +1327,25 @@ document.getElementById("submit-measure").addEventListener("click", async () => 
       };
     }
     if (!serverTimeFields.measured_at) throw new Error("服務器未返回量體時間，請聯絡技術人員檢查部署版本。");
-    state.lockedRecord = { ...record, ...serverTimeFields, measurement_id: measurementId, locked: true };
-    localStorage.setItem(`mc-measure-${measurementId}`, JSON.stringify(state.lockedRecord));
-    appendAdminMeasurement(state.lockedRecord);
-    document.getElementById("locked-message").textContent = `量體記錄：${measurementId}`;
-    renderSummary(document.getElementById("locked-summary"), state.lockedRecord);
-    showToast("提交成功，本次記錄已鎖定");
+    if (shouldUseServerApi()) {
+      const lockedRecord = { ...record, ...serverTimeFields, measurement_id: measurementId, locked: true };
+      localStorage.setItem(`mc-measure-${measurementId}`, JSON.stringify(lockedRecord));
+      appendAdminMeasurement(lockedRecord);
+      state.lockedRecord = lockedRecord;
+    } else {
+      state.lockedRecord = saveLocalMeasurement(record, serverTimeFields, measurementId);
+    }
+    showLockedRecord();
+    showToast(shouldUseServerApi() ? "提交成功，本次記錄已鎖定" : "量體檔案已保存");
     setPage(8);
   } catch (error) {
     showToast(`提交失敗：${error.message}`);
+  } finally {
+    submitButton.disabled = false;
+    workspaceSave.disabled = false;
   }
-});
+}
+document.getElementById("submit-measure").addEventListener("click", submitMeasurement);
 
 document.querySelector('[name="remark"]')?.addEventListener("input", () => {
   if (state.page === 9) renderSummary(document.getElementById("summary-card"), buildRecord());
@@ -947,17 +1357,148 @@ document.addEventListener("change", (event) => {
   if (state.page === 9) renderSummary(document.getElementById("summary-card"), buildRecord());
 });
 
-document.getElementById("new-record").addEventListener("click", resetForNextRecord);
-document.getElementById("measure-form").addEventListener("submit", event => event.preventDefault());
+document.getElementById("new-record").addEventListener("click", () => {
+  if (shouldUseServerApi()) resetForNextRecord();
+  else setPage(1);
+});
+measureForm.addEventListener("submit", event => event.preventDefault());
+measureForm.addEventListener("input", () => {
+  if (isWorkspace()) toast.hidden = true;
+});
+
+orderSelect.addEventListener("change", () => {
+  if (shouldUseServerApi()) return;
+  if (!isWorkspace()) {
+    if (state.employee) resetForNextRecord();
+    return;
+  }
+  rememberWorkspaceEmployee();
+  employeeQuery.value = workspace.query = "";
+  resetForNextRecord();
+  roster.scrollTop = 0;
+});
+employeeQuery.addEventListener("input", () => {
+  if (!isWorkspace() || employeeQuery.value.trim() || !workspace.query) return;
+  workspace.query = "";
+  renderRoster();
+});
+roster.addEventListener("click", event => {
+  const row = event.target.closest("[data-employee-id]");
+  if (row) selectWorkspaceEmployee(row.dataset.employeeId);
+});
+pinEmployee.addEventListener("click", () => {
+  const key = employeeKey(state.employee.order_id, state.employee.employee_id);
+  readWorkspacePins();
+  if (!workspace.pins.delete(key)) workspace.pins.add(key);
+  try {
+    localStorage.setItem(workspace.pinKey, JSON.stringify([...workspace.pins]));
+  } catch {
+    showToast("無法在此瀏覽器保存置頂設定");
+  }
+  renderWorkspace();
+  if (workspace.pins.has(key)) roster.scrollTop = 0;
+});
+garmentTabs.addEventListener("click", event => {
+  const tab = event.target.closest("[data-garment-page]");
+  if (!tab) return;
+  setPage(Number(tab.dataset.garmentPage));
+  garmentTabs.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
+});
+workspaceReturn.addEventListener("click", () => setPage(workspace.entryPage || state.flow[2]));
+document.getElementById("workspace-archives").addEventListener("click", () => setPage(1));
+workspaceSave.addEventListener("click", () => {
+  if (state.page === 9) submitMeasurement();
+  else if (validateMeasurement()) setPage(9);
+});
+workspaceScreen.addEventListener("change", () => setPage(state.page));
+
+archiveOptions.addEventListener("change", event => {
+  state.archiveId = event.target.value;
+});
+archivePicker.addEventListener("click", event => {
+  const button = event.target.closest("[data-archive-action]");
+  if (button && state.employee) startArchiveOperation(button.dataset.archiveAction);
+});
+
+const archiveHistory = document.getElementById("archive-history-dialog");
+document.getElementById("open-archive-history").addEventListener("click", () => {
+  const labels = new Map(Object.values(fieldGroups).flat().map(([name, label]) => [name, label]));
+  document.getElementById("archive-history-list").innerHTML = visibleArchives().map(entry => {
+    const {record} = entry;
+    const fields = record.product_measurements?.length ? TailorProducts.summary(record)
+      : Object.entries(record.measurements || {}).map(([name, value]) => `<div><span>${escapeHtml(labels.get(name) || name)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+    const remark = record.final_remark || record.remark;
+    return `<details class="archive-history-entry"><summary class="archive-option">${archiveMetadata(entry)}</summary>
+      <section class="product-summary">${fields || '<p>此版本暫無量體字段。</p>'}${remark ? `<p>備註 · ${escapeHtml(remark)}</p>` : ""}</section></details>`;
+  }).join("");
+  archiveHistory.showModal();
+});
+document.getElementById("close-archive-history").addEventListener("click", () => archiveHistory.close());
+
+const employeeEditor = document.getElementById("employee-edit-dialog");
+const employeeEditForm = document.getElementById("employee-edit-form");
+const employeeEditError = document.getElementById("employee-edit-error");
+employeeCard.addEventListener("click", event => {
+  const mode = event.target.closest("[data-edit-profile]")?.dataset.editProfile;
+  if (!mode || !state.employee || shouldUseServerApi()) return;
+  const {height_cm, weight_kg, department} = state.employee;
+  const editSize = mode === "size";
+  document.getElementById("employee-edit-title").textContent = editSize ? "修改身高體重" : "修改部門";
+  document.getElementById("employee-size-fields").hidden = !editSize;
+  document.getElementById("employee-department-field").hidden = editSize;
+  employeeEditError.hidden = true;
+  employeeEditForm.elements.height_cm.disabled = employeeEditForm.elements.weight_kg.disabled = !editSize;
+  employeeEditForm.elements.department.disabled = editSize;
+  employeeEditForm.elements.height_cm.value = height_cm;
+  employeeEditForm.elements.weight_kg.value = weight_kg;
+  const departments = new Set(loadAdminStore()?.departments || []);
+  if (department && department !== "-") departments.add(department);
+  employeeEditForm.elements.department.innerHTML = '<option value="">請選擇部門</option>' + [...departments]
+    .map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+  employeeEditForm.elements.department.value = department === "-" ? "" : department;
+  employeeEditor.showModal();
+});
+document.getElementById("close-employee-edit").addEventListener("click", () => employeeEditor.close());
+employeeEditForm.addEventListener("submit", event => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(employeeEditForm));
+  try {
+    const store = loadAdminStore();
+    const employee = store?.employees?.find(item => item.order_id === state.employee.order_id && item.employee_id === state.employee.employee_id);
+    if (!employee) throw new Error("此員工已移除，請重新查詢。");
+    if (Object.hasOwn(data, "department")) {
+      if (!data.department || (data.department !== employee.unit_name && !store.departments?.includes(data.department))) {
+        throw new Error("請選擇有效部門。");
+      }
+      employee.unit_name = data.department;
+    } else {
+      for (const name of ["height_cm", "weight_kg"]) {
+        if (data[name] && !(Number(data[name]) > 0 && Number.isFinite(Number(data[name])))) throw new Error("身高和體重請填寫大於 0 的數值。");
+        employee[name] = data[name];
+      }
+    }
+    saveAdminStore(store);
+    Object.assign(state.employee, {height_cm: employee.height_cm || "", weight_kg: employee.weight_kg || "", department: employee.unit_name || "-"});
+    const mode = Object.hasOwn(data, "department") ? "department" : "size";
+    employeeEditor.close();
+    renderEmployee(state.employee);
+    employeeCard.querySelector(`[data-edit-profile="${mode}"]`)?.focus({preventScroll: true});
+    if (state.page === 9) renderSummary(document.getElementById("summary-card"), buildRecord());
+    showToast("員工資料已保存");
+  } catch (error) {
+    employeeEditError.textContent = error.message;
+    employeeEditError.hidden = false;
+  }
+});
 
 renderFields();
 configureFlowForEmployee();
 setPage(0);
 
-// Read-only appointment companion; never changes employee selection or form state.
-function appointmentEscape(value) {
+function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[char]));
 }
+// Read-only appointment companion; never changes employee selection or form state.
 function appointmentTime(value) {
   const raw = String(value || "").trim().replace(" ", "T");
   return raw ? Date.parse(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw) ? raw : `${raw}+08:00`) : NaN;
@@ -989,18 +1530,18 @@ function renderAppointments() {
   const store = loadAdminStore() || {};
   const selectedOrder = appointmentOrder.value;
   const orders = store.orders || [];
-  appointmentOrder.innerHTML = '<option value="">全部訂單</option>' + orders.map(order => `<option value="${appointmentEscape(order.order_id)}">${appointmentEscape(order.order_id)} / ${appointmentEscape(order.company_name)}</option>`).join("");
+  appointmentOrder.innerHTML = '<option value="">全部訂單</option>' + orders.map(order => `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)} / ${escapeHtml(order.company_name)}</option>`).join("");
   appointmentOrder.value = orders.some(order => order.order_id === selectedOrder) ? selectedOrder : "";
   const slots = (store.appointmentSlots || []).filter(slot => slot.date === appointmentDate.value && (!appointmentOrder.value || slot.order_id === appointmentOrder.value)).sort((a,b) => a.start_time.localeCompare(b.start_time));
   const selectedSlot = appointmentSlot.value;
-  appointmentSlot.innerHTML = '<option value="">全天 · 全部時段</option>' + slots.map(slot => `<option value="${appointmentEscape(slot.id)}">${appointmentEscape(slot.start_time)}–${appointmentEscape(slot.end_time)} / ${appointmentEscape(slot.address)} / ${appointmentEscape(slot.order_id)}</option>`).join("");
+  appointmentSlot.innerHTML = '<option value="">全天 · 全部時段</option>' + slots.map(slot => `<option value="${escapeHtml(slot.id)}">${escapeHtml(slot.start_time)}–${escapeHtml(slot.end_time)} / ${escapeHtml(slot.address)} / ${escapeHtml(slot.order_id)}</option>`).join("");
   appointmentSlot.value = slots.some(slot => slot.id === selectedSlot) ? selectedSlot : "";
   const rows = appointmentRows(store, appointmentDate.value, appointmentOrder.value).filter(row => !appointmentSlot.value || row.slot.id === appointmentSlot.value);
   const done = rows.filter(row => row.measurement).length;
   document.getElementById("appointment-counts").textContent = `預約 ${rows.length} 人次 · 待量身 ${rows.length - done} · 已量身 ${done}`;
   const visible = rows.filter(row => appointmentStatus.value === "all" || Boolean(row.measurement) === (appointmentStatus.value === "done"));
   document.getElementById("appointment-list").innerHTML = visible.length
-    ? `<p class="appointment-names">${visible.map(({booking, employee}) => `${appointmentEscape(booking.employee_id)} ${appointmentEscape(employee?.name || booking.employee_name || "未填寫姓名")}`).join("；")}</p>`
+    ? `<p class="appointment-names">${visible.map(({booking, employee}) => `${escapeHtml(booking.employee_id)} ${escapeHtml(employee?.name || booking.employee_name || "未填寫姓名")}`).join("；")}</p>`
     : '<p class="appointment-empty">目前條件下沒有預約人員，可切換日期、訂單或狀態查看。</p>';
 }
 document.getElementById("open-appointments").addEventListener("click", () => {
@@ -1018,5 +1559,13 @@ document.getElementById("appointments-today").addEventListener("click", () => {
 });
 window.addEventListener("storage", event => {
   if ((event.key === adminStoreKey || event.key === null) && appointmentsDialog.open) renderAppointments();
+  if ((event.key === adminStoreKey || event.key === null) && !archivePicker.hidden) renderArchivePicker();
+  if (!isWorkspace()) return;
+  if (event.key === workspace.pinKey || event.key === null) {
+    readWorkspacePins();
+    renderWorkspace();
+  } else if (event.key === adminStoreKey) {
+    renderRoster();
+  }
 });
 window.addEventListener("focus", () => { if (appointmentsDialog.open) renderAppointments(); });
