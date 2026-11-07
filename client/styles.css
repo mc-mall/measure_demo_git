@@ -424,9 +424,20 @@ button {
   gap: 8px;
 }
 
-.client-order-card,
 .after-sale-record-card {
   padding: 11px 12px;
+}
+
+.client-order-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+}
+
+.client-order-summary > span {
+  display: block;
 }
 
 .client-order-card strong {
@@ -436,7 +447,13 @@ button {
   font-size: 16px;
 }
 
-.client-order-card p,
+.client-order-card p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .after-sale-record-card p {
   margin: 3px 0 10px;
   color: var(--muted);
@@ -566,21 +583,50 @@ body.calendar-open { overflow: hidden; }
 }
 
 #view-orders {
-  padding: 18px 16px 26px;
+  padding: 12px 14px 24px;
 }
 
 #view-orders .section-head {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 #view-orders .section-head h1 {
-  margin: 4px 0 5px;
-  font-size: 22px;
+  margin: 3px 0 4px;
+  font-size: 20px;
+}
+
+#view-orders .section-head p:last-child {
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 #view-orders .primary-action,
 #view-orders .secondary-action {
-  min-height: 42px;
+  min-height: 44px;
+  font-size: 14px;
+}
+
+#client-profile-card {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+}
+
+#client-profile-card .empty-state {
+  grid-column: 1 / -1;
+}
+
+.after-sale-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.after-sale-section-head button {
+  padding: 6px 10px;
 }
 
 .sku-summary {
@@ -865,8 +911,6 @@ body.calendar-open { overflow: hidden; }
 }
 
 /* Order and after-sales workflow */
-.client-order-card { flex-wrap: wrap; }
-.client-order-card .workflow { flex: 0 0 100%; }
 .workflow { min-width: 0; margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, #fff); }
 .workflow h3 { margin: 0; font-size: 15px; }
 .workflow p { font-size: 13px; }
@@ -889,9 +933,36 @@ body.calendar-open { overflow: hidden; }
 .return-dialog input:not([type=checkbox]), .return-dialog textarea { box-sizing: border-box; width: 100%; min-width: 0; padding: 10px; border: 1px solid #ccd3db; border-radius: 8px; font: inherit; }
 .return-dialog textarea { resize: vertical; }
 #client-after-sale-error { color: #a63131; }
-.client-order-card .button-row { flex-wrap: wrap; width: 100%; }
-.client-order-card .button-row button { flex: 1 1 110px; }
 @media (max-width: 360px) { .workflow ol { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.client-order-card .workflow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 8px;
+  margin: 0;
+  padding: 8px;
+}
+
+.client-order-card .workflow p {
+  margin: 0;
+}
+
+.client-order-card .workflow ol {
+  grid-column: 1 / -1;
+  gap: 6px 8px;
+  margin: 6px 0 0;
+}
+
+.client-order-card .workflow li {
+  gap: 4px;
+  line-height: 1.3;
+}
+
+.client-order-card .workflow li > span {
+  flex-basis: 18px;
+  height: 18px;
+}
 
 /* Compact application list and dedicated detail view. */
 .after-sale-list-item { display: grid; gap: 8px; width: 100%; min-width: 0; padding: 14px; text-align: left; color: var(--ink); font: inherit; cursor: pointer; }

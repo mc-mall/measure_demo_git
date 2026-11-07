@@ -169,28 +169,29 @@ function renderClientOrders() {
   const profile = document.getElementById("client-profile-card");
   const cards = document.getElementById("client-order-cards");
   const records = document.getElementById("client-after-sale-records");
+  const startAfterSale = document.getElementById("client-start-after-sale");
+  const employeeOrders = getEmployeeOrders();
+  startAfterSale.hidden = !employeeOrders.length;
   if (!currentEmployee) {
-    profile.innerHTML = '<div class="empty-state"><strong>請先登入</strong><span>登入後即可查看訂單、申請記錄及量體預約。</span></div>';
+    profile.innerHTML = '<div class="empty-state"><strong>請先登入</strong><span>登入後即可查看訂單、售後申請及量身預約。</span></div>';
     cards.innerHTML = '<button class="primary-action" type="button" data-jump="login">前往登入</button>';
     records.innerHTML = "";
     return;
   }
 
   profile.innerHTML = `<div><span>當前員工</span><strong>${escapeClientHtml(currentEmployee.employeeId)} · ${escapeClientHtml(currentEmployee.name)}</strong></div><div><span>性別 / 分部</span><strong>${escapeClientHtml(currentEmployee.gender)} / ${escapeClientHtml(currentEmployee.department)}</strong></div>`;
-  const employeeOrders = getEmployeeOrders();
   const store = loadSharedAdminStore();
   const employee = store.employees.find(item => item.employee_id === currentEmployee.employeeId && item.order_id === currentEmployee.orderId);
   cards.innerHTML = employeeOrders.length ? employeeOrders.map((order) => `
     <article class="client-order-card">
-      <div><span>訂單 / 項目</span><strong>${escapeClientHtml(order.order_id)}</strong><p>${escapeClientHtml(order.company_name)}</p></div>
+      <div class="client-order-summary"><span>訂單 / 項目</span><strong>${escapeClientHtml(order.order_id)}</strong><p>${escapeClientHtml(order.company_name)}</p></div>
+      <div class="button-row">
+        <button class="secondary-action" type="button" data-open-confirmation>服裝確認</button>
+        <button class="primary-action" type="button" data-open-appointment="${escapeClientHtml(order.order_id)}">量身預約</button>
+      </div>
       ${renderWorkflow(MeasureWorkflow.forward, MeasureWorkflow.progress(store, employee || {}), "訂單執行進度")}
       ${employee?.estimated_delivery_date ? `<p class="estimated-delivery">預計交付日期：<strong>${escapeClientHtml(employee.estimated_delivery_date)}</strong></p>` : ""}
       ${(employee?.order_progress_history || []).length ? `<details class="order-progress-history"><summary>訂單進度更新記錄（${employee.order_progress_history.length}）</summary><ol>${[...employee.order_progress_history].reverse().map(item => `<li><strong>${escapeClientHtml(item.status)}</strong><span>${escapeClientHtml(item.changed_at)} · ${escapeClientHtml(item.operator || "管理後台")}</span>${item.estimated_delivery_date ? `<span>預計交付日期：${escapeClientHtml(item.estimated_delivery_date)}</span>` : ""}</li>`).join("")}</ol></details>` : ""}
-      <div class="button-row">
-        <button class="secondary-action" type="button" data-open-confirmation>服裝確認</button>
-        <button class="primary-action" type="button" data-open-appointment="${escapeClientHtml(order.order_id)}">預約量身</button>
-        <button class="secondary-action" type="button" data-start-after-sale>提交售後</button>
-      </div>
     </article>`).join("") : '<div class="empty-state"><strong>暫無可選訂單</strong><span>請聯絡工作人員核對員工的歸屬訂單。</span></div>';
 
   const employeeRecords = getEmployeeAfterSaleRecords();
@@ -205,7 +206,7 @@ function renderClientOrders() {
       ${record.estimated_delivery_date ? `<span class="after-sale-list-meta">預計交付日期：<strong>${escapeClientHtml(record.estimated_delivery_date)}</strong></span>` : ""}
       <span class="after-sale-list-link">查看申請詳情</span>
     </button>`;
-  }).join("") : '<div class="empty-state"><strong>暫無申請記錄</strong><span>請從訂單提交退換服裝、數量與修改要求，再到門市退還。</span></div>';
+  }).join("") : '<div class="empty-state"><strong>暫無售後申請</strong><span>提交退換或改衫申請後，可在這裡查看進度。</span></div>';
 }
 
 function renderClientAfterSaleDetail() {
@@ -703,11 +704,11 @@ document.getElementById("login-form").addEventListener("submit", (event) => {
   if (employee.signatureConfirmation?.confirmStatus === "confirmed") {
     confirmedData = { ...employee.signatureConfirmation, employee };
     renderSummary(document.getElementById("locked-summary"), confirmedData, true);
-    showNotice(result, "success", "登入成功", "服裝確認已完成，您可查看申請記錄或前往量體預約。");
+    showNotice(result, "success", "登入成功", "服裝確認已完成，您可查看售後申請或前往量身預約。");
     window.setTimeout(() => switchView("orders"), 350);
     return;
   }
-  showNotice(result, "success", "登入成功", "請選擇訂單後繼續服裝確認或前往量體預約。");
+  showNotice(result, "success", "登入成功", "請選擇訂單進行服裝確認或量身預約。");
   window.setTimeout(() => switchView("orders"), 350);
 });
 
