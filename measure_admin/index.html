@@ -260,13 +260,12 @@
       </form>
     </dialog>
     <dialog class="entity-dialog order-dialog" id="order-dialog">
-      <form id="order-form">
+      <form id="order-form" novalidate>
         <div class="dialog-head"><div><h3 id="order-dialog-title">新增訂單</h3><p>配置訂單基本資料及客戶端可選服裝。</p></div><button class="secondary" type="button" data-close-entity>取消</button></div>
         <input type="hidden" name="id" />
         <ol class="order-steps" aria-label="訂單配置步驟">
           <li class="is-active" data-order-step-indicator="1"><strong>1</strong><span>基本資料與服裝類型</span></li>
           <li data-order-step-indicator="2"><strong>2</strong><span>配置服裝</span></li>
-          <li data-order-step-indicator="3"><strong>3</strong><span>組合數量限制（可選）</span></li>
         </ol>
         <section class="order-step is-active" data-order-step="1">
           <div class="dialog-form-grid order-basic-grid">
@@ -293,8 +292,16 @@
             <div><h4>數量規則</h4><p>默認數量會帶入客戶端；關閉“允許更改”後，員工只能按默認數量確認。</p></div>
           </div>
           <div class="quantity-config-list" id="garment-quantity-config"></div>
-          <p class="form-error" id="order-quantity-error" hidden></p>
-          <section class="order-after-sale-products" aria-labelledby="order-after-sale-title">
+          <p class="form-error" id="order-quantity-error" role="alert" hidden></p>
+          <section class="order-config-section" aria-labelledby="order-rule-title">
+            <div class="garment-section-head rule-section-head">
+              <div><h4 id="order-rule-title">組合數量限制</h4><p>可設定同一性別下多個服裝類型的合計數量。</p></div>
+              <button class="secondary compact-button" type="button" data-add-quantity-rule>添加限制規則</button>
+            </div>
+            <div class="quantity-rule-list" id="quantity-rule-list"></div>
+            <p class="form-error" id="order-rule-error" role="alert" tabindex="-1" hidden></p>
+          </section>
+          <section class="order-config-section" aria-labelledby="order-after-sale-title">
             <div class="garment-section-head">
               <h4 id="order-after-sale-title">售後產品</h4>
               <p>勾選可售後的服裝，填寫每件可售後次數。員工申請與門市代建共用此規則。</p>
@@ -303,18 +310,9 @@
             <p class="form-error" id="order-after-sale-error" role="alert" hidden></p>
           </section>
         </section>
-        <section class="order-step" data-order-step="3">
-          <div class="garment-section-head rule-section-head">
-            <div><h4>組合數量限制</h4><p>限制同一性別下多個服裝類型的合計數量；如本訂單不需要限制，可直接跳過。</p></div>
-            <button class="secondary compact-button" type="button" data-add-quantity-rule>添加限制規則</button>
-          </div>
-          <div class="quantity-rule-list" id="quantity-rule-list"></div>
-          <p class="form-error" id="order-rule-error" hidden></p>
-        </section>
         <div class="dialog-actions order-dialog-actions">
           <button class="secondary" type="button" id="order-step-prev" hidden>上一步</button>
-          <button type="button" id="order-step-next">下一步：配置數量</button>
-          <button class="secondary" type="submit" id="order-skip-rules" hidden>跳過並保存</button>
+          <button type="submit" id="order-step-next">下一步：配置服裝</button>
           <button type="submit" id="order-save" hidden>保存訂單</button>
         </div>
       </form>

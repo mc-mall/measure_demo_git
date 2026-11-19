@@ -1597,16 +1597,13 @@ function setOrderStep(step) {
   document.querySelectorAll("[data-order-step]").forEach((section) => section.classList.toggle("is-active", Number(section.dataset.orderStep) === step));
   document.querySelectorAll("[data-order-step-indicator]").forEach((item) => item.classList.toggle("is-active", Number(item.dataset.orderStepIndicator) === step));
   document.getElementById("order-step-prev").hidden = step === 1;
-  const hasRules = orderEditorState.quantityRules.length > 0;
-  const nextButton = document.getElementById("order-step-next");
-  nextButton.hidden = step === 3;
-  nextButton.textContent = step === 1 ? "下一步：配置服裝" : "下一步：組合限制";
-  document.getElementById("order-skip-rules").hidden = step !== 3 || hasRules;
-  document.getElementById("order-save").hidden = step !== 3 || !hasRules;
+  document.getElementById("order-step-next").hidden = step === 2;
+  document.getElementById("order-save").hidden = step === 1;
   document.getElementById("order-type-error").hidden = true;
   document.getElementById("order-quantity-error").hidden = true;
   document.getElementById("order-after-sale-error").hidden = true;
   document.getElementById("order-rule-error").hidden = true;
+  document.getElementById("order-dialog").scrollTop = 0;
 }
 
 function renderGarmentTypeLists() {
@@ -1670,7 +1667,7 @@ function renderGarmentQuantityConfig() {
         ${garments.map((item) => `
           <div class="quantity-config-row" data-quantity-garment="${item.id}">
             <strong>${escapeHtml(item.name)}</strong>
-            <label><span>默認數量</span><input class="garment-default-quantity" type="number" min="1" max="99" step="1" value="${Number(item.default_quantity) || 1}" required /></label>
+            <label><span>默認數量</span><input class="garment-default-quantity" type="number" min="1" max="99" step="1" value="${Number.isFinite(item.default_quantity) ? item.default_quantity : ""}" required /></label>
             <label class="toggle-field"><input class="garment-quantity-editable" type="checkbox" ${item.quantity_editable !== false ? "checked" : ""} /><span>允許員工更改數量</span></label>
           </div>
         `).join("")}
@@ -1711,31 +1708,26 @@ function syncAfterSaleProductInputs() {
   });
 }
 
-function syncGarmentQuantityInputs() {
-  let valid = true;
+function syncGarmentQuantityInputs(validate = false) {
+  let invalidInput;
   document.querySelectorAll("[data-quantity-garment]").forEach((row) => {
     const garment = orderEditorState.garments.find((item) => item.id === row.dataset.quantityGarment);
     const quantityInput = row.querySelector(".garment-default-quantity");
-    const quantity = Number(quantityInput.value);
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
-      valid = false;
-      quantityInput.setCustomValidity("請輸入 1 至 99 的整數");
-      quantityInput.reportValidity();
-    } else {
-      quantityInput.setCustomValidity("");
-      garment.default_quantity = quantity;
-      garment.quantity_editable = row.querySelector(".garment-quantity-editable").checked;
-    }
+    garment.default_quantity = quantityInput.valueAsNumber;
+    garment.quantity_editable = row.querySelector(".garment-quantity-editable").checked;
+    if (validate && !quantityInput.validity.valid) invalidInput ??= quantityInput;
   });
-  if (!valid) showOrderError("order-quantity-error", "每個服裝類型的默認數量必須是 1 至 99 的整數。");
-  return valid;
+  if (!invalidInput) return true;
+  showOrderError("order-quantity-error", "每個服裝類型的默認數量必須是 1 至 99 的整數。");
+  invalidInput.focus();
+  return false;
 }
 
 function renderQuantityRules() {
   const target = document.getElementById("quantity-rule-list");
+  document.getElementById("order-rule-error").hidden = true;
   if (!orderEditorState.quantityRules.length) {
-    target.innerHTML = `<div class="garment-empty rule-empty"><strong>暫無組合限制</strong><span>可添加限制規則，或直接跳過並保存訂單。</span></div>`;
-    setOrderStep(orderEditorState.step);
+    target.innerHTML = '<p class="garment-empty">暫無組合限制</p>';
     return;
   }
   target.innerHTML = orderEditorState.quantityRules.map((rule, index) => {
@@ -1750,12 +1742,11 @@ function renderQuantityRules() {
             <div>${genderGarments.map((garment) => `<label><input type="checkbox" value="${garment.id}" ${rule.garment_ids.includes(garment.id) ? "checked" : ""} /><span>${escapeHtml(garment.name)}</span></label>`).join("")}</div>
           </fieldset>
           <label><span>限制條件</span><select class="rule-operator"><option value="lte" ${rule.operator === "lte" ? "selected" : ""}>不多於</option><option value="eq" ${rule.operator === "eq" ? "selected" : ""}>剛好</option></select></label>
-          <label><span>限制數量</span><div class="quantity-with-unit"><input class="rule-quantity" type="number" min="1" max="99" step="1" value="${Number(rule.quantity) || 1}" /><span>件</span></div></label>
+          <label><span>限制數量</span><div class="quantity-with-unit"><input class="rule-quantity" type="number" min="1" max="99" step="1" value="${Number.isFinite(rule.quantity) ? rule.quantity : ""}" /><span>件</span></div></label>
         </div>
       </section>
     `;
   }).join("");
-  setOrderStep(orderEditorState.step);
 }
 
 function syncQuantityRuleInputs(validate = false) {
@@ -1766,11 +1757,14 @@ function syncQuantityRuleInputs(validate = false) {
     rule.gender = row.querySelector(".rule-gender").value;
     rule.garment_ids = [...row.querySelectorAll('.rule-garment-options input[type="checkbox"]:checked')].map((input) => input.value);
     rule.operator = row.querySelector(".rule-operator").value;
-    rule.quantity = Number(row.querySelector(".rule-quantity").value);
+    rule.quantity = row.querySelector(".rule-quantity").valueAsNumber;
     if (validate && rule.garment_ids.length < 2) valid = false;
     if (validate && (!Number.isInteger(rule.quantity) || rule.quantity < 1 || rule.quantity > 99)) valid = false;
   });
-  if (!valid) showOrderError("order-rule-error", "每條限制規則需選擇至少 2 個服裝類型，並填寫 1 至 99 的整數數量。");
+  if (!valid) {
+    showOrderError("order-rule-error", "每條限制規則需選擇至少 2 個服裝類型，並填寫 1 至 99 的整數數量。");
+    document.getElementById("order-rule-error").focus();
+  }
   return valid;
 }
 
@@ -2736,8 +2730,20 @@ document.getElementById("tailor-form").addEventListener("submit", (event) => {
 });
 
 function saveOrderDraft(form) {
-  if (!form.closest("dialog").open || orderEditorState.step !== 3) return;
+  if (!form.closest("dialog").open || orderEditorState.step !== 2) return;
+  for (const id of ["order-quantity-error", "order-rule-error", "order-after-sale-error"]) {
+    document.getElementById(id).hidden = true;
+  }
+  if (!syncGarmentQuantityInputs(true)) return;
   if (!syncQuantityRuleInputs(true)) return;
+  syncAfterSaleProductInputs();
+  const invalidLimit = [...form.querySelectorAll(".after-sale-product-limit:enabled")]
+    .find(input => !Number.isSafeInteger(input.valueAsNumber) || input.valueAsNumber < 1);
+  if (invalidLimit) {
+    showOrderError("order-after-sale-error", "請為已勾選的售後產品填寫大於 0 的整數次數。");
+    invalidLimit.focus();
+    return;
+  }
   const data = Object.fromEntries(new FormData(form));
   const orders = loadStore().orders;
   const duplicate = orders.some((item) => item.order_id === data.order_id.trim() && item.id !== data.id);
@@ -2763,47 +2769,23 @@ function saveOrderDraft(form) {
 
 document.getElementById("order-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  if (orderEditorState.step < 3) {
-    document.getElementById("order-step-next").click();
-    return;
-  }
-  const form = event.currentTarget;
-  MeasureWorkflow.withAfterSaleLock(() => saveOrderDraft(form));
-});
-
-document.getElementById("order-step-next").addEventListener("click", () => {
   if (orderEditorState.step === 1) {
     document.getElementById("order-type-error").hidden = true;
     if (!validateOrderTypes()) return;
     const garmentIds = new Set(orderEditorState.garments.map((item) => item.id));
     orderEditorState.quantityRules.forEach((rule) => { rule.garment_ids = rule.garment_ids.filter((id) => garmentIds.has(id)); });
     renderGarmentQuantityConfig();
+    renderQuantityRules();
     setOrderStep(2);
     return;
   }
-  document.getElementById("order-quantity-error").hidden = true;
-  document.getElementById("order-after-sale-error").hidden = true;
-  if (!syncGarmentQuantityInputs()) return;
-  syncAfterSaleProductInputs();
-  const invalidLimit = [...document.querySelectorAll(".after-sale-product-limit:enabled")]
-    .find(input => !Number.isSafeInteger(input.valueAsNumber) || input.valueAsNumber < 1);
-  if (invalidLimit) {
-    showOrderError("order-after-sale-error", "請為已勾選的售後產品填寫大於 0 的整數次數。");
-    invalidLimit.focus();
-    return;
-  }
-  renderQuantityRules();
-  setOrderStep(3);
+  const form = event.currentTarget;
+  MeasureWorkflow.withAfterSaleLock(() => saveOrderDraft(form));
 });
 
 document.getElementById("order-step-prev").addEventListener("click", () => {
-  if (orderEditorState.step === 3) {
-    syncQuantityRuleInputs(false);
-    renderGarmentQuantityConfig();
-    setOrderStep(2);
-    return;
-  }
   syncGarmentQuantityInputs();
+  syncQuantityRuleInputs();
   syncAfterSaleProductInputs();
   renderGarmentTypeLists();
   setOrderStep(1);
