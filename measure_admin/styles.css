@@ -613,13 +613,9 @@ textarea { width: 100%; border: 1px solid #cbd6e2; border-radius: 8px; padding: 
 .garment-type-row input { min-width: 0; }
 .garment-type-row button { width: 38px; min-height: 38px; padding: 0; border: 1px solid #efc2bd; background: #fff1f0; color: var(--red); }
 .garment-empty { margin: 0; padding: 18px 10px; border: 1px dashed #cbd6e2; border-radius: 8px; color: var(--muted); font-size: 13px; text-align: center; }
-.quantity-config-list { display: grid; gap: 14px; }
 .quantity-gender-group { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .quantity-gender-head { display: flex; align-items: center; gap: 8px; padding: 11px 14px; background: #f1f5f9; }
-.quantity-config-row { display: grid; grid-template-columns: minmax(180px, 1fr) 160px 180px; gap: 14px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line); }
-.quantity-config-row > strong { overflow-wrap: anywhere; }
-.quantity-config-row label span { font-size: 12px; }
-.order-config-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.order-config-section + .order-config-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
 .after-sale-limit-heading { margin-left: auto; color: var(--muted); font-size: 12px; }
 .after-sale-product-row { display: grid; grid-template-columns: minmax(0, 1fr) 108px; gap: 12px; align-items: center; padding: 6px 12px; border-top: 1px solid var(--line); }
 .after-sale-product-row .toggle-field { overflow-wrap: anywhere; }
@@ -829,7 +825,6 @@ td {
   .order-steps,
   .garment-gender-grid,
   .order-basic-grid { grid-template-columns: 1fr; }
-  .quantity-config-row { grid-template-columns: 1fr; gap: 9px; }
   .rule-section-head { align-items: stretch; flex-direction: column; }
   .quantity-rule-fields { grid-template-columns: 1fr; }
   .employee-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }

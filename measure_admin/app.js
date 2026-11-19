@@ -1600,7 +1600,6 @@ function setOrderStep(step) {
   document.getElementById("order-step-next").hidden = step === 2;
   document.getElementById("order-save").hidden = step === 1;
   document.getElementById("order-type-error").hidden = true;
-  document.getElementById("order-quantity-error").hidden = true;
   document.getElementById("order-after-sale-error").hidden = true;
   document.getElementById("order-rule-error").hidden = true;
   document.getElementById("order-dialog").scrollTop = 0;
@@ -1656,27 +1655,6 @@ function validateOrderTypes() {
   return true;
 }
 
-function renderGarmentQuantityConfig() {
-  const target = document.getElementById("garment-quantity-config");
-  target.innerHTML = ["男", "女"].map((gender) => {
-    const garments = orderEditorState.garments.filter((item) => item.gender === gender);
-    if (!garments.length) return "";
-    return `
-      <section class="quantity-gender-group">
-        <div class="quantity-gender-head"><span class="gender-badge ${gender === "男" ? "male" : "female"}">${gender}</span><strong>${gender}士服裝</strong></div>
-        ${garments.map((item) => `
-          <div class="quantity-config-row" data-quantity-garment="${item.id}">
-            <strong>${escapeHtml(item.name)}</strong>
-            <label><span>默認數量</span><input class="garment-default-quantity" type="number" min="1" max="99" step="1" value="${Number.isFinite(item.default_quantity) ? item.default_quantity : ""}" required /></label>
-            <label class="toggle-field"><input class="garment-quantity-editable" type="checkbox" ${item.quantity_editable !== false ? "checked" : ""} /><span>允許員工更改數量</span></label>
-          </div>
-        `).join("")}
-      </section>
-    `;
-  }).join("");
-  renderAfterSaleProducts();
-}
-
 function renderAfterSaleProducts() {
   const { garments, afterSaleLimits } = orderEditorState;
   document.getElementById("order-after-sale-products").innerHTML = ["男", "女"].map(gender => {
@@ -1706,21 +1684,6 @@ function syncAfterSaleProductInputs() {
       afterSaleLimits.delete(id);
     }
   });
-}
-
-function syncGarmentQuantityInputs(validate = false) {
-  let invalidInput;
-  document.querySelectorAll("[data-quantity-garment]").forEach((row) => {
-    const garment = orderEditorState.garments.find((item) => item.id === row.dataset.quantityGarment);
-    const quantityInput = row.querySelector(".garment-default-quantity");
-    garment.default_quantity = quantityInput.valueAsNumber;
-    garment.quantity_editable = row.querySelector(".garment-quantity-editable").checked;
-    if (validate && !quantityInput.validity.valid) invalidInput ??= quantityInput;
-  });
-  if (!invalidInput) return true;
-  showOrderError("order-quantity-error", "每個服裝類型的默認數量必須是 1 至 99 的整數。");
-  invalidInput.focus();
-  return false;
 }
 
 function renderQuantityRules() {
@@ -1778,7 +1741,6 @@ function openEntityDialog(type, item = null) {
   const action = item ? (type === "order" ? "修改" : "編輯") : "新增";
   document.getElementById(`${type}-dialog-title`).textContent = `${action}${labels[type]}`;
   if (type === "order") {
-    document.getElementById("garment-quantity-config").innerHTML = "";
     document.getElementById("order-after-sale-products").innerHTML = "";
     document.getElementById("quantity-rule-list").innerHTML = "";
     orderEditorState.garments = Array.isArray(item?.garments) ? item.garments.map((garment) => ({
@@ -1786,8 +1748,6 @@ function openEntityDialog(type, item = null) {
       id: garment.id || uid("G"),
       gender: garment.gender,
       name: garment.name || "",
-      default_quantity: Number(garment.default_quantity) || 1,
-      quantity_editable: garment.quantity_editable !== false,
     })) : [];
     const afterSaleProducts = Array.isArray(item?.after_sale_products) ? item.after_sale_products : [];
     orderEditorState.afterSaleLimits = new Map(afterSaleProducts.map(product => [product.garment_id, product.limit]));
@@ -2731,10 +2691,9 @@ document.getElementById("tailor-form").addEventListener("submit", (event) => {
 
 function saveOrderDraft(form) {
   if (!form.closest("dialog").open || orderEditorState.step !== 2) return;
-  for (const id of ["order-quantity-error", "order-rule-error", "order-after-sale-error"]) {
+  for (const id of ["order-rule-error", "order-after-sale-error"]) {
     document.getElementById(id).hidden = true;
   }
-  if (!syncGarmentQuantityInputs(true)) return;
   if (!syncQuantityRuleInputs(true)) return;
   syncAfterSaleProductInputs();
   const invalidLimit = [...form.querySelectorAll(".after-sale-product-limit:enabled")]
@@ -2774,8 +2733,8 @@ document.getElementById("order-form").addEventListener("submit", (event) => {
     if (!validateOrderTypes()) return;
     const garmentIds = new Set(orderEditorState.garments.map((item) => item.id));
     orderEditorState.quantityRules.forEach((rule) => { rule.garment_ids = rule.garment_ids.filter((id) => garmentIds.has(id)); });
-    renderGarmentQuantityConfig();
     renderQuantityRules();
+    renderAfterSaleProducts();
     setOrderStep(2);
     return;
   }
@@ -2784,7 +2743,6 @@ document.getElementById("order-form").addEventListener("submit", (event) => {
 });
 
 document.getElementById("order-step-prev").addEventListener("click", () => {
-  syncGarmentQuantityInputs();
   syncQuantityRuleInputs();
   syncAfterSaleProductInputs();
   renderGarmentTypeLists();
