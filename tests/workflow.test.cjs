@@ -36,6 +36,61 @@ test('return garments use confirmed quantities, otherwise gender-specific order 
   e.signature_confirmation={selectedSkuList:[{skuId:'shirt',skuName:'襯衫',quantity:3}]};
   assert.equal(w.garments(s,e).length,1);assert.equal(w.garments(s,e)[0].quantity,3);
 });
+test('after-sales require a configured product that the employee selected or was allocated', () => {
+  const w = setup();
+  const store = w.read();
+  const [order] = store.orders;
+  const [employee] = store.employees;
+  assert.equal(w.afterSaleGarments(store, employee).length, 0);
+
+  order.after_sale_products = [
+    { garment_id: 'G001', limit: 1 },
+    { garment_id: 'G003', limit: 2 },
+    { garment_id: 'G004', limit: 0 },
+    { garment_id: 'removed', limit: 1 },
+  ];
+  assert.equal(w.afterSaleGarments(store, employee).map(item => item.id).join(), 'G003');
+  employee.signature_confirmation = { selectedSkuList: [
+    { skuId: 'G003', skuName: '襯衫', quantity: 3 },
+    { skuId: 'G006', skuName: '連衣裙', quantity: 2 },
+    { skuId: 'removed', skuName: '舊款', quantity: 1 },
+  ] };
+  const [shirt] = w.afterSaleGarments(store, employee);
+  assert.equal(shirt.quantity, 3);
+  assert.equal(shirt.remaining, 5);
+  employee.signature_confirmation.selectedSkuList = [];
+  assert.equal(w.afterSaleGarments(store, employee).length, 0);
+});
+test('employee and store applications share a quantity-based quota for the same employee, order and product', () => {
+  const w = setup();
+  const store = w.read();
+  const [employee] = store.employees;
+  store.orders[0].after_sale_products = [{ garment_id: 'G003', limit: 2 }];
+  const record = { employee_id: employee.employee_id, order_id: employee.order_id };
+  store.afterSales = [
+    { ...record, source: 'employee', items: [{ garment_id: 'G003', quantity: 1 }] },
+    { ...record, source: 'admin', items: [{ garment_id: 'G003', quantity: 2 }] },
+    { ...record, order_id: 'OTHER', items: [{ garment_id: 'G003', quantity: 2 }] },
+    { ...record, employee_id: 'OTHER', items: [{ garment_id: 'G003', quantity: 2 }] },
+    { ...record, items: [{ garment_id: 'G004', quantity: 2 }] },
+    { ...record, items: [{ garment_id: 'G003', quantity: 2, closed: {} }] },
+  ];
+  const [shirt] = w.afterSaleGarments(store, employee);
+  assert.equal(shirt.remaining, 1);
+  assert.equal(shirt.quantity, 1);
+  store.afterSales.at(-1).receipts = [{ items: [{ garment_id: 'G003', quantity: 1 }] }];
+  assert.equal(w.afterSaleGarments(store, employee).length, 0);
+});
+test('after-sale submission validates current product IDs, quantities and demands', () => {
+  const w = setup();
+  const eligible = [{ id: 'G003', name: '襯衫', quantity: 1 }];
+  const selected = { garment_id: 'G003', demand: '修改袖長', quantity: 1 };
+  assert.equal(w.validateAfterSaleItems(eligible, [selected])[0].garment_name, '襯衫');
+  assert.equal(w.validateAfterSaleItems([], [selected]), null);
+  assert.equal(w.validateAfterSaleItems(eligible, [selected, selected]), null);
+  assert.equal(w.validateAfterSaleItems(eligible, [{ ...selected, quantity: 2 }]), null);
+  assert.equal(w.validateAfterSaleItems(eligible, [{ ...selected, demand: '' }]), null);
+});
 test('receipt quantities preserve partial and zero receipt without substituting requested counts', () => {
   const w=setup(); const shirt={garment_id:'shirt',quantity:2};const pants={garment_id:'pants',quantity:1};
   const record={status:'提交售後',items:[shirt,pants]};

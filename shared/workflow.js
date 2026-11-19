@@ -189,6 +189,49 @@ function garments(store, employee) {
   const order = store.orders.find(item => item.order_id === employee.order_id);
   return (order?.garments || []).filter(item => item.gender === employee.gender).map(item => ({id: item.id || item.name, name: item.name, quantity: Number(item.default_quantity) || 1}));
 }
+function withAfterSaleLock(task) {
+  return window.navigator?.locks ? window.navigator.locks.request(`${key}:after-sales`, task) : task();
+}
+
+function afterSaleGarments(store, employee) {
+  const order = store.orders.find(item => item.order_id === employee.order_id);
+  if (!Array.isArray(order?.after_sale_products) || !order.after_sale_products.length || employee.signature_confirmation?.selectedSkuList?.length === 0) return [];
+
+  const limits = new Map(order.after_sale_products.map(item => [item.garment_id, item.limit]));
+  const orderGarments = new Map((order.garments || []).filter(item => item.gender === employee.gender).map(item => [item.id, item]));
+  const ownedGarments = garments(store, employee);
+  const used = new Map();
+  for (const record of store.afterSales || []) {
+    if (record.order_id !== employee.order_id || record.employee_id !== employee.employee_id) continue;
+    for (const item of record.items || []) {
+      const quantity = Number(item.closed || record.status === "已關閉" ? receivedQuantity(record, item) : item.quantity);
+      if (Number.isSafeInteger(quantity) && quantity > 0) {
+        used.set(item.garment_id, (used.get(item.garment_id) || 0) + quantity);
+      }
+    }
+  }
+
+  return ownedGarments.flatMap(item => {
+    const limit = limits.get(item.id);
+    const orderGarment = orderGarments.get(item.id);
+    if (!orderGarment || !Number.isSafeInteger(limit) || limit < 1 || !Number.isSafeInteger(item.quantity) || item.quantity < 1) return [];
+    const remaining = item.quantity * limit - (used.get(item.id) || 0);
+    return remaining > 0 ? [{ id: item.id, name: orderGarment.name, quantity: Math.min(item.quantity, remaining), limit, remaining }] : [];
+  });
+}
+
+function validateAfterSaleItems(eligible, selected) {
+  const garmentsById = new Map(eligible.map(item => [item.id, item]));
+  const selectedIds = new Set();
+  const items = [];
+  for (const { garment_id, quantity, demand } of selected) {
+    const garment = garmentsById.get(garment_id);
+    if (!garment || selectedIds.has(garment_id) || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > garment.quantity || !demand) return null;
+    selectedIds.add(garment_id);
+    items.push({ garment_id, garment_name: garment.name, quantity, demand });
+  }
+  return items.length ? items : null;
+}
 function validDeliveryDate(value) {
   if (typeof value !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value) || value.startsWith("0000")) return false;
   const date = new Date(`${value}T00:00:00Z`);
@@ -208,6 +251,6 @@ function receivedLabel(record, item) {
   const quantity = receivedQuantity(record, item);
   return quantity !== null ? `${quantity} 件` : record.status === after[0] && !record.receipt ? "待簽收" : "未記錄";
 }
-return {validDeliveryDate, key, forward, after, read, normalize, progress, garments, seedStore, registrationToken, receivedQuantity, receivedLabel, receiptBatches, remainingQuantity, readyForFactory};
+return {validDeliveryDate, key, forward, after, read, normalize, progress, garments, withAfterSaleLock, afterSaleGarments, validateAfterSaleItems, seedStore, registrationToken, receivedQuantity, receivedLabel, receiptBatches, remainingQuantity, readyForFactory};
 })();
 MeasureWorkflow.read();

@@ -17,7 +17,7 @@ const alterationAssignmentState = { taskIds: new Set(), currentTaskId: "" };
 const alterationReturnState = { taskIds: new Set() };
 const alterationQcAssignmentState = { taskIds: new Set(), currentTaskId: "" };
 const alterationQcReturnState = { taskIds: new Set() };
-const orderEditorState = { step: 1, garments: [], quantityRules: [] };
+const orderEditorState = { step: 1, garments: [], quantityRules: [], afterSaleLimits: new Map() };
 const signatureDetailState = { orderId: "", page: 1, pageSize: 15 };
 const appointmentSelection = new Set();
 let currentUser = readSessionUser();
@@ -318,7 +318,7 @@ function renderOrders() {
     <tr>
       <td>${escapeHtml(item.order_id)}</td><td>${escapeHtml(item.company_name)}</td>
       <td>${garmentSummary(item, "男")}</td><td>${garmentSummary(item, "女")}</td><td>${quantityRuleSummary(item)}</td>
-      <td><div class="row-actions">${isOwner() ? `<button type="button" data-order-progress="${escapeHtml(item.order_id)}">變更訂單進度</button><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-registration-qr="${escapeHtml(item.order_id)}">員工註冊二維碼</button><button type="button" data-edit-order="${item.id}">編輯</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button>` : `<button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button>`}</div></td>
+      <td><div class="row-actions">${isOwner() ? `<button type="button" data-order-progress="${escapeHtml(item.order_id)}">變更訂單進度</button><button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button><button type="button" data-registration-qr="${escapeHtml(item.order_id)}">員工註冊二維碼</button><button type="button" data-edit-order="${item.id}">修改</button><button class="danger" type="button" data-delete-order="${item.id}">刪除</button>` : `<button type="button" data-open-signatures="${escapeHtml(item.order_id)}">簽字明細</button>`}</div></td>
     </tr>
   `);
   renderTable("order-table", ["訂單號", "公司名", "男士服裝配置", "女士服裝配置", "組合數量限制", "操作"], rows);
@@ -605,26 +605,43 @@ function openAfterSaleDetail(recordId) {
   document.getElementById("after-sale-detail-dialog").showModal();
 }
 
-const adminAfterSaleState = { employeeId: "", employeeOptions: [] };
+const adminAfterSaleState = { employeeId: "" };
 
 function renderAdminAfterSaleEmployeeResults() {
   const store = loadStore();
   const orderId = document.getElementById("admin-after-sale-order").value;
   const keyword = document.getElementById("admin-after-sale-employee-search").value.trim().toLowerCase();
   const results = accessibleEmployees(store).filter(employee => employee.order_id === orderId && (!keyword || `${employee.employee_id} ${employee.name}`.toLowerCase().includes(keyword)));
-  adminAfterSaleState.employeeOptions = results;
   document.getElementById("admin-after-sale-employee-results").innerHTML = results.length ? results.slice(0, 8).map(employee => `<button type="button" class="after-sale-employee-result" data-admin-after-sale-employee="${escapeHtml(employee.employee_id)}"><strong>${escapeHtml(employee.employee_id)}</strong><span>${escapeHtml(employee.name)} · ${escapeHtml(employee.unit_name || "未填写单位")}</span></button>`).join("") : `<p class="dialog-tip">未找到匹配员工，请检查员工号和订单。</p>`;
 }
 
 function renderAdminAfterSaleItems(employeeId) {
   const store = loadStore();
-  const employee = store.employees.find(item => item.employee_id === employeeId);
+  const orderId = document.getElementById("admin-after-sale-order").value;
+  const employee = accessibleEmployees(store).find(item => item.employee_id === employeeId && item.order_id === orderId);
   if (!employee) return;
   adminAfterSaleState.employeeId = employeeId;
   document.getElementById("admin-after-sale-selected").hidden = false;
   document.getElementById("admin-after-sale-selected").innerHTML = `<strong>已选择员工：${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.name)}</strong><span>${escapeHtml(employee.unit_name || "未填写单位")} · ${escapeHtml(employee.order_id)}</span>`;
-  const items = MeasureWorkflow.garments(store, employee);
-  document.getElementById("admin-after-sale-items").innerHTML = items.length ? `<h4>勾选实际售后服装并填写数量</h4>${items.map((item, index) => `<div class="after-sale-admin-item"><label class="after-sale-admin-item-check"><input class="admin-after-sale-item-check" type="checkbox" data-index="${index}" /><span><strong>${escapeHtml(item.name)}</strong><small>SKU：${escapeHtml(item.id)} · 可选数量 ${Number(item.quantity) || 1}</small></span></label><label><span>数量</span><input class="admin-after-sale-item-quantity" data-index="${index}" type="number" min="1" max="${Number(item.quantity) || 1}" value="1" /></label><label class="after-sale-demand"><span>售后要求</span><textarea class="admin-after-sale-item-demand" data-index="${index}" rows="2" placeholder="例如：裤长缩短 2cm"></textarea></label></div>`).join("")}` : `<p class="dialog-tip">该员工暂无可用服装配置。</p>`;
+  const items = MeasureWorkflow.afterSaleGarments(store, employee);
+  document.getElementById("admin-after-sale-items").innerHTML = items.length ? items.map(item => `
+    <div class="after-sale-admin-item" data-admin-after-sale-product="${escapeHtml(item.id)}">
+      <label class="after-sale-admin-item-check"><input class="admin-after-sale-item-check" type="checkbox" /><span><strong>${escapeHtml(item.name)}</strong><small>本次最多 ${item.quantity} 件 · 剩餘 ${item.remaining} 件次</small></span></label>
+      <label><span>數量</span><input class="admin-after-sale-item-quantity" type="number" min="1" max="${item.quantity}" step="1" value="1" disabled /></label>
+      <label class="after-sale-demand"><span>售後要求</span><textarea class="admin-after-sale-item-demand" rows="2" placeholder="例如：褲長縮短 2cm" disabled></textarea></label>
+    </div>`).join("") : '<p class="dialog-tip">此員工在本訂單暫無可申請售後的產品。</p>';
+  document.getElementById("admin-after-sale-submit").disabled = !items.length;
+  document.getElementById("admin-after-sale-error").hidden = true;
+}
+
+function resetAdminAfterSaleEmployee() {
+  adminAfterSaleState.employeeId = "";
+  document.getElementById("admin-after-sale-employee-search").value = "";
+  document.getElementById("admin-after-sale-selected").hidden = true;
+  document.getElementById("admin-after-sale-items").innerHTML = '<p class="dialog-tip">請先選擇員工，系統會帶出該員工在此訂單下可售後的服裝。</p>';
+  document.getElementById("admin-after-sale-error").hidden = true;
+  document.getElementById("admin-after-sale-submit").disabled = true;
+  renderAdminAfterSaleEmployeeResults();
 }
 
 function openAdminAfterSaleDialog() {
@@ -632,31 +649,28 @@ function openAdminAfterSaleDialog() {
   const form = document.getElementById("admin-after-sale-form");
   form.reset();
   form.elements.order_id.innerHTML = accessibleOrders(store).map(order => `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)} · ${escapeHtml(order.company_name)}</option>`).join("");
-  adminAfterSaleState.employeeId = "";
-  document.getElementById("admin-after-sale-employee-search").value = "";
-  document.getElementById("admin-after-sale-selected").hidden = true;
-  document.getElementById("admin-after-sale-items").innerHTML = `<p class="dialog-tip">请先选择员工，系统会带出该员工在此订单下可售后的服装。</p>`;
-  document.getElementById("admin-after-sale-error").hidden = true;
-  renderAdminAfterSaleEmployeeResults();
+  resetAdminAfterSaleEmployee();
   document.getElementById("after-sale-create-dialog").showModal();
 }
 
 function submitAdminAfterSale(form) {
+  if (!form.closest("dialog").open) return;
   const store = loadStore();
-  const employee = store.employees.find(item => item.employee_id === adminAfterSaleState.employeeId && item.order_id === form.elements.order_id.value);
+  const employee = accessibleEmployees(store).find(item => item.employee_id === adminAfterSaleState.employeeId && item.order_id === form.elements.order_id.value);
   const error = document.getElementById("admin-after-sale-error");
-  const selected = [...document.querySelectorAll(".admin-after-sale-item-check:checked")].map(check => {
-    const index = Number(check.dataset.index);
-    const quantity = document.querySelector(`.admin-after-sale-item-quantity[data-index="${index}"]`);
-    const demand = document.querySelector(`.admin-after-sale-item-demand[data-index="${index}"]`);
-    return { index, quantity: Number(quantity?.value), demand: demand?.value.trim() || "" };
+  if (!employee) { error.textContent = "請先搜尋並選擇員工。"; error.hidden = false; return; }
+  const selected = [...form.querySelectorAll(".admin-after-sale-item-check:checked")].map(check => {
+    const row = check.closest("[data-admin-after-sale-product]");
+    return {
+      garment_id: row.dataset.adminAfterSaleProduct,
+      quantity: row.querySelector(".admin-after-sale-item-quantity").valueAsNumber,
+      demand: row.querySelector(".admin-after-sale-item-demand").value.trim(),
+    };
   });
-  const items = employee ? MeasureWorkflow.garments(store, employee) : [];
-  if (!employee) { error.textContent = "请先搜索并选择员工。"; error.hidden = false; return; }
-  if (!selected.length || selected.some(item => !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > (Number(items[item.index]?.quantity) || 1) || !item.demand)) { error.textContent = "请至少勾选一件服装，并填写有效数量和对应售后要求。"; error.hidden = false; return; }
+  const saleItems = MeasureWorkflow.validateAfterSaleItems(MeasureWorkflow.afterSaleGarments(store, employee), selected);
+  if (!saleItems) { error.textContent = "請勾選目前可售後的服裝，並填寫有效數量及售後要求。若額度已變動，請重新選擇員工。"; error.hidden = false; return; }
   const now = nowText();
   const id = `ASADMIN${now.replace(/[^0-9]/g, "").slice(0, 12)}${String((store.afterSales || []).filter(item => item.source === "admin").length + 1).padStart(3, "0")}`;
-  const saleItems = selected.map(item => ({ garment_id: items[item.index].id, garment_name: items[item.index].name, quantity: item.quantity, demand: item.demand }));
   const record = { id, source: "admin", employee_id: employee.employee_id, employee_name: employee.name, employee_gender: employee.gender, employee_unit: employee.unit_name, order_id: employee.order_id, items: saleItems, remark: form.elements.remark.value.trim(), status: "門市收貨", created_at: now, updated_at: now, receipt: { operator: currentUser.username, operator_id: currentUser.id, received_at: now, remark: "后台新建售后单，门店提交即签收", items: saleItems.map(item => ({ garment_id: item.garment_id, garment_name: item.garment_name, quantity: item.quantity })) }, receipts: [{ operator: currentUser.username, operator_id: currentUser.id, received_at: now, remark: "后台新建售后单，门店提交即签收", items: saleItems.map(item => ({ garment_id: item.garment_id, garment_name: item.garment_name, quantity: item.quantity })) }], status_history: [{ status: "門市收貨", action: "后台新建售后单并完成门店签收", changed_at: now, operator: currentUser.username, operator_id: currentUser.id }] };
   store.afterSales ||= [];
   store.afterSales.unshift(record);
@@ -1586,11 +1600,12 @@ function setOrderStep(step) {
   const hasRules = orderEditorState.quantityRules.length > 0;
   const nextButton = document.getElementById("order-step-next");
   nextButton.hidden = step === 3;
-  nextButton.textContent = step === 1 ? "下一步：配置數量" : "下一步：組合限制";
+  nextButton.textContent = step === 1 ? "下一步：配置服裝" : "下一步：組合限制";
   document.getElementById("order-skip-rules").hidden = step !== 3 || hasRules;
   document.getElementById("order-save").hidden = step !== 3 || !hasRules;
   document.getElementById("order-type-error").hidden = true;
   document.getElementById("order-quantity-error").hidden = true;
+  document.getElementById("order-after-sale-error").hidden = true;
   document.getElementById("order-rule-error").hidden = true;
 }
 
@@ -1662,6 +1677,38 @@ function renderGarmentQuantityConfig() {
       </section>
     `;
   }).join("");
+  renderAfterSaleProducts();
+}
+
+function renderAfterSaleProducts() {
+  const { garments, afterSaleLimits } = orderEditorState;
+  document.getElementById("order-after-sale-products").innerHTML = ["男", "女"].map(gender => {
+    const products = garments.filter(item => item.gender === gender);
+    if (!products.length) return "";
+    return `
+      <section class="quantity-gender-group" aria-label="${gender}士售後產品">
+        <div class="quantity-gender-head"><span class="gender-badge ${gender === "男" ? "male" : "female"}">${gender}</span><strong>${gender}士服裝</strong><span class="after-sale-limit-heading">每件可售後次數</span></div>
+        ${products.map(item => {
+          const enabled = afterSaleLimits.has(item.id);
+          return `<div class="after-sale-product-row" data-after-sale-product="${escapeHtml(item.id)}">
+            <label class="toggle-field"><input class="after-sale-product-check" type="checkbox" ${enabled ? "checked" : ""} /><span>${escapeHtml(item.name)}</span></label>
+            <input class="after-sale-product-limit" type="number" min="1" step="1" value="${escapeHtml(afterSaleLimits.get(item.id) ?? "")}" aria-label="${gender}士${escapeHtml(item.name)}每件可售後次數" ${enabled ? "" : "disabled"} />
+          </div>`;
+        }).join("")}
+      </section>`;
+  }).join("");
+}
+
+function syncAfterSaleProductInputs() {
+  const { afterSaleLimits } = orderEditorState;
+  document.querySelectorAll("[data-after-sale-product]").forEach(row => {
+    const id = row.dataset.afterSaleProduct;
+    if (row.querySelector(".after-sale-product-check").checked) {
+      afterSaleLimits.set(id, row.querySelector(".after-sale-product-limit").value);
+    } else {
+      afterSaleLimits.delete(id);
+    }
+  });
 }
 
 function syncGarmentQuantityInputs() {
@@ -1734,18 +1781,24 @@ function openEntityDialog(type, item = null) {
   form.reset();
   form.elements.id.value = "";
   if (item) fillForm(`${type}-form`, item);
-  document.getElementById(`${type}-dialog-title`).textContent = `${item ? "編輯" : "新增"}${labels[type]}`;
+  const action = item ? (type === "order" ? "修改" : "編輯") : "新增";
+  document.getElementById(`${type}-dialog-title`).textContent = `${action}${labels[type]}`;
   if (type === "order") {
     document.getElementById("garment-quantity-config").innerHTML = "";
+    document.getElementById("order-after-sale-products").innerHTML = "";
     document.getElementById("quantity-rule-list").innerHTML = "";
     orderEditorState.garments = Array.isArray(item?.garments) ? item.garments.map((garment) => ({
+      ...garment,
       id: garment.id || uid("G"),
       gender: garment.gender,
       name: garment.name || "",
       default_quantity: Number(garment.default_quantity) || 1,
       quantity_editable: garment.quantity_editable !== false,
     })) : [];
+    const afterSaleProducts = Array.isArray(item?.after_sale_products) ? item.after_sale_products : [];
+    orderEditorState.afterSaleLimits = new Map(afterSaleProducts.map(product => [product.garment_id, product.limit]));
     orderEditorState.quantityRules = Array.isArray(item?.quantity_rules) ? item.quantity_rules.map((rule) => ({
+      ...rule,
       id: rule.id || uid("R"),
       gender: rule.gender === "女" ? "女" : "男",
       garment_ids: Array.isArray(rule.garment_ids) ? [...rule.garment_ids] : [],
@@ -2476,23 +2529,18 @@ document.getElementById("appointment-slot-form").addEventListener("submit", (eve
 
 document.getElementById("apply-after-sale-status").addEventListener("click", applyAfterSaleStatus);
 document.getElementById("open-admin-after-sale").addEventListener("click", openAdminAfterSaleDialog);
-document.getElementById("admin-after-sale-order").addEventListener("change", () => {
-  document.getElementById("admin-after-sale-employee-search").value = "";
-  adminAfterSaleState.employeeId = "";
-  document.getElementById("admin-after-sale-selected").hidden = true;
-  document.getElementById("admin-after-sale-items").innerHTML = `<p class="dialog-tip">请先选择员工，系统会带出该员工在此订单下可售后的服装。</p>`;
-  renderAdminAfterSaleEmployeeResults();
-});
+document.getElementById("admin-after-sale-order").addEventListener("change", resetAdminAfterSaleEmployee);
 document.getElementById("admin-after-sale-employee-search").addEventListener("input", renderAdminAfterSaleEmployeeResults);
 document.getElementById("admin-after-sale-items").addEventListener("change", event => {
-  if (!event.target.matches(".admin-after-sale-item-check input")) return;
-  const index = event.target.dataset.index;
-  document.querySelector(`.admin-after-sale-item-quantity[data-index="${index}"]`).disabled = !event.target.checked;
-  document.querySelector(`.admin-after-sale-item-demand[data-index="${index}"]`).disabled = !event.target.checked;
+  if (!event.target.matches(".admin-after-sale-item-check")) return;
+  const row = event.target.closest("[data-admin-after-sale-product]");
+  row.querySelector(".admin-after-sale-item-quantity").disabled = !event.target.checked;
+  row.querySelector(".admin-after-sale-item-demand").disabled = !event.target.checked;
 });
 document.getElementById("admin-after-sale-form").addEventListener("submit", event => {
   event.preventDefault();
-  if (hasPermission("after_sales") || isOwner()) submitAdminAfterSale(event.currentTarget);
+  const form = event.currentTarget;
+  if (hasPermission("after_sales") || isOwner()) MeasureWorkflow.withAfterSaleLock(() => submitAdminAfterSale(form));
 });
 document.getElementById("alteration-table").addEventListener("change", event => {
   if (event.target.id === "alteration-check-page") {
@@ -2687,30 +2735,40 @@ document.getElementById("tailor-form").addEventListener("submit", (event) => {
   showToast("裁縫師已保存");
 });
 
-document.getElementById("order-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (orderEditorState.step < 3) {
-    document.getElementById("order-step-next").click();
-    return;
-  }
+function saveOrderDraft(form) {
+  if (!form.closest("dialog").open || orderEditorState.step !== 3) return;
   if (!syncQuantityRuleInputs(true)) return;
-  const data = Object.fromEntries(new FormData(event.currentTarget));
-  const duplicate = loadStore().orders.some((item) => item.order_id === data.order_id.trim() && item.id !== data.id);
+  const data = Object.fromEntries(new FormData(form));
+  const orders = loadStore().orders;
+  const duplicate = orders.some((item) => item.order_id === data.order_id.trim() && item.id !== data.id);
   if (duplicate) {
     setOrderStep(1);
     showOrderError("order-type-error", "訂單號已存在，請使用其他訂單號。");
     return;
   }
   upsert("orders", {
+    ...orders.find(item => item.id === data.id),
     id: data.id || uid("O"),
     order_id: data.order_id.trim(),
     company_name: data.company_name.trim(),
     garments: orderEditorState.garments.map((item) => ({ ...item })),
     quantity_rules: orderEditorState.quantityRules.map((item) => ({ ...item, garment_ids: [...item.garment_ids] })),
+    after_sale_products: orderEditorState.garments.filter(item => orderEditorState.afterSaleLimits.has(item.id))
+      .map(item => ({ garment_id: item.id, limit: Number(orderEditorState.afterSaleLimits.get(item.id)) })),
   });
-  event.currentTarget.reset();
-  document.getElementById("order-dialog").close();
+  form.reset();
+  form.closest("dialog").close();
   showToast("訂單已保存");
+}
+
+document.getElementById("order-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (orderEditorState.step < 3) {
+    document.getElementById("order-step-next").click();
+    return;
+  }
+  const form = event.currentTarget;
+  MeasureWorkflow.withAfterSaleLock(() => saveOrderDraft(form));
 });
 
 document.getElementById("order-step-next").addEventListener("click", () => {
@@ -2724,7 +2782,16 @@ document.getElementById("order-step-next").addEventListener("click", () => {
     return;
   }
   document.getElementById("order-quantity-error").hidden = true;
+  document.getElementById("order-after-sale-error").hidden = true;
   if (!syncGarmentQuantityInputs()) return;
+  syncAfterSaleProductInputs();
+  const invalidLimit = [...document.querySelectorAll(".after-sale-product-limit:enabled")]
+    .find(input => !Number.isSafeInteger(input.valueAsNumber) || input.valueAsNumber < 1);
+  if (invalidLimit) {
+    showOrderError("order-after-sale-error", "請為已勾選的售後產品填寫大於 0 的整數次數。");
+    invalidLimit.focus();
+    return;
+  }
   renderQuantityRules();
   setOrderStep(3);
 });
@@ -2737,8 +2804,15 @@ document.getElementById("order-step-prev").addEventListener("click", () => {
     return;
   }
   syncGarmentQuantityInputs();
+  syncAfterSaleProductInputs();
   renderGarmentTypeLists();
   setOrderStep(1);
+});
+
+document.getElementById("order-after-sale-products").addEventListener("change", event => {
+  if (!event.target.matches(".after-sale-product-check")) return;
+  const input = event.target.closest("[data-after-sale-product]").querySelector(".after-sale-product-limit");
+  input.disabled = !event.target.checked;
 });
 
 document.getElementById("quantity-rule-list").addEventListener("change", (event) => {
@@ -2943,6 +3017,7 @@ document.body.addEventListener("click", (event) => {
   if (button.dataset.removeGarment) {
     syncGarmentTypeInputs();
     orderEditorState.garments = orderEditorState.garments.filter((item) => item.id !== button.dataset.removeGarment);
+    orderEditorState.afterSaleLimits.delete(button.dataset.removeGarment);
     renderGarmentTypeLists();
   }
   if (button.hasAttribute("data-add-quantity-rule")) {

@@ -137,7 +137,7 @@
         <section class="view" id="view-after-sales">
           <div class="panel list-toolbar">
             <div><h3>售後管理</h3><p>员工提交售后或门店后台新建 → 门店签收 → 生成改衣任务 → 工厂处理 → 完成派送。</p></div>
-            <div class="row-actions"><button type="button" id="open-admin-after-sale" data-permission="after_sales">后台新建售后单</button><button type="button" id="open-after-status-import">導入更新狀態</button><button type="button" id="export-after-sales" data-permission="after_sales_export">導出篩選明細</button></div>
+            <div class="row-actions"><button type="button" id="open-admin-after-sale" data-permission="after_sales">門市代建</button><button type="button" id="open-after-status-import">導入更新狀態</button><button type="button" id="export-after-sales" data-permission="after_sales_export">導出篩選明細</button></div>
           </div>
           <div class="panel after-sale-filters">
             <label><span>員工 / 登記編號</span><input id="after-sale-filter-keyword" type="search" placeholder="員工編號、姓名或登記編號" /></label>
@@ -265,7 +265,7 @@
         <input type="hidden" name="id" />
         <ol class="order-steps" aria-label="訂單配置步驟">
           <li class="is-active" data-order-step-indicator="1"><strong>1</strong><span>基本資料與服裝類型</span></li>
-          <li data-order-step-indicator="2"><strong>2</strong><span>默認數量與修改權限</span></li>
+          <li data-order-step-indicator="2"><strong>2</strong><span>配置服裝</span></li>
           <li data-order-step-indicator="3"><strong>3</strong><span>組合數量限制（可選）</span></li>
         </ol>
         <section class="order-step is-active" data-order-step="1">
@@ -294,6 +294,14 @@
           </div>
           <div class="quantity-config-list" id="garment-quantity-config"></div>
           <p class="form-error" id="order-quantity-error" hidden></p>
+          <section class="order-after-sale-products" aria-labelledby="order-after-sale-title">
+            <div class="garment-section-head">
+              <h4 id="order-after-sale-title">售後產品</h4>
+              <p>勾選可售後的服裝，填寫每件可售後次數。員工申請與門市代建共用此規則。</p>
+            </div>
+            <div class="garment-gender-grid" id="order-after-sale-products"></div>
+            <p class="form-error" id="order-after-sale-error" role="alert" hidden></p>
+          </section>
         </section>
         <section class="order-step" data-order-step="3">
           <div class="garment-section-head rule-section-head">
@@ -422,19 +430,19 @@
       <div class="dialog-head"><div><h3 id="after-sale-detail-title">售後詳情</h3><p id="after-sale-detail-subtitle"></p></div><button class="secondary" type="button" data-close-after-sale-detail>關閉</button></div>
       <div id="after-sale-detail-content"></div>
     </dialog>
-    <dialog class="after-sale-create-dialog" id="after-sale-create-dialog">
+    <dialog class="after-sale-create-dialog" id="after-sale-create-dialog" aria-labelledby="admin-after-sale-title">
       <form id="admin-after-sale-form">
-        <div class="dialog-head"><div><h3>后台新建售后单</h3><p>选择订单，搜索员工号，勾选实际售后数量并填写每项售后要求；门店提交后自动记为“已签收”。</p></div><button class="secondary" type="button" data-close-after-sale-create>取消</button></div>
+        <div class="dialog-head"><div><h3 id="admin-after-sale-title">門市代理售後</h3><p>選擇訂單及員工，再勾選可售後服裝。提交後自動記為「已簽收」。</p></div><button class="secondary" type="button" data-close-after-sale-create>取消</button></div>
         <div class="dialog-form-grid">
-          <label><span>订单</span><select id="admin-after-sale-order" name="order_id" required></select></label>
-          <label><span>搜索员工号</span><input id="admin-after-sale-employee-search" type="search" placeholder="输入员工编号后选择" autocomplete="off" /></label>
+          <label><span>訂單</span><select id="admin-after-sale-order" name="order_id" required></select></label>
+          <label><span>搜尋員工編號</span><input id="admin-after-sale-employee-search" type="search" placeholder="輸入員工編號後選擇" autocomplete="off" /></label>
         </div>
         <div class="after-sale-admin-employee-results" id="admin-after-sale-employee-results"></div>
         <div class="after-sale-admin-selected" id="admin-after-sale-selected" hidden></div>
-        <div class="after-sale-admin-items" id="admin-after-sale-items"><p class="dialog-tip">请先选择员工，系统会带出该员工在此订单下可售后的服装。</p></div>
-        <label class="after-sale-demand-field"><span>整单补充说明（可选）</span><textarea name="remark" rows="2" maxlength="300" placeholder="例如：员工现场说明，周五前送回支行"></textarea></label>
-        <p class="form-error" id="admin-after-sale-error" hidden></p>
-        <div class="dialog-actions"><button type="submit">确认提交并标记已签收</button></div>
+        <div class="after-sale-admin-items" id="admin-after-sale-items"></div>
+        <label class="after-sale-demand-field"><span>整單補充說明（可選）</span><textarea name="remark" rows="2" maxlength="300" placeholder="例如：週五前送回支行"></textarea></label>
+        <p class="form-error" id="admin-after-sale-error" role="alert" hidden></p>
+        <div class="dialog-actions"><button type="submit" id="admin-after-sale-submit" disabled>確認提交並標記已簽收</button></div>
       </form>
     </dialog>
     <dialog class="alteration-detail-dialog" id="alteration-detail-dialog">

@@ -619,6 +619,12 @@ textarea { width: 100%; border: 1px solid #cbd6e2; border-radius: 8px; padding: 
 .quantity-config-row { display: grid; grid-template-columns: minmax(180px, 1fr) 160px 180px; gap: 14px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line); }
 .quantity-config-row > strong { overflow-wrap: anywhere; }
 .quantity-config-row label span { font-size: 12px; }
+.order-after-sale-products { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.after-sale-limit-heading { margin-left: auto; color: var(--muted); font-size: 12px; }
+.after-sale-product-row { display: grid; grid-template-columns: minmax(0, 1fr) 108px; gap: 12px; align-items: center; padding: 6px 12px; border-top: 1px solid var(--line); }
+.after-sale-product-row .toggle-field { overflow-wrap: anywhere; }
+.after-sale-product-limit { width: 100%; min-width: 0; }
+.after-sale-product-limit:disabled { background: #f1f5f9; }
 .toggle-field { display: flex; align-items: center; gap: 9px; min-height: 40px; }
 .toggle-field input { width: 18px; min-height: auto; height: 18px; margin: 0; }
 .form-error { margin: 12px 0 0; color: var(--red); font-size: 13px; font-weight: 800; }
