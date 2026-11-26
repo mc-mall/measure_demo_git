@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>MC 量體資料收集</title>
-    <link rel="stylesheet" href="./styles.css?v=20261126-measurement-overview" />
+    <link rel="stylesheet" href="./styles.css?v=20261126-compact-roster" />
   </head>
   <body>
     <main class="app-shell">
@@ -332,11 +332,12 @@
             </div>
           </div>
           <div class="dashboard-list-heading">
-            <h3>員工名單 <span id="dashboard-list-count" role="status"></span></h3>
+            <h3 id="dashboard-list-title">員工名單</h3>
             <button type="button" class="secondary-action" id="copy-pending-roster" hidden>複製待量體名單</button>
+            <span id="dashboard-list-count" role="status"></span>
           </div>
           <p id="roster-copy-status" class="overview-note" role="status" hidden></p>
-          <div id="dashboard-list" class="overview-groups"></div>
+          <ul id="dashboard-list" class="dashboard-list" aria-labelledby="dashboard-list-title" role="list"></ul>
           <p id="dashboard-empty" class="roster-empty" hidden></p>
         </section>
         <section id="overview-appointments" aria-label="預約明細" hidden>
@@ -360,6 +361,6 @@
 
     <script src="../shared/workflow.js?v=20260916-appointment-names"></script>
     <script src="./products.js?v=20261106-employee-archives"></script>
-    <script src="./app.js?v=20261126-measurement-overview"></script>
+    <script src="./app.js?v=20261126-compact-roster"></script>
   </body>
 </html>

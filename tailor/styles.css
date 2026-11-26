@@ -1014,7 +1014,8 @@ button:disabled {
 .dashboard-progress progress { width: 100%; height: 10px; accent-color: var(--green); }
 .dashboard-list-heading { margin-bottom: 8px; }
 .dashboard-list-heading h3 { margin: 0; font-size: 16px; }
-.dashboard-list-heading span { color: var(--muted); font-size: 13px; font-weight: 400; }
+.dashboard-list-heading button { margin-inline-start: auto; }
+.dashboard-list-heading span { color: var(--muted); font-size: 13px; white-space: nowrap; }
 .overview-groups { display: grid; gap: 8px; }
 .overview-group {
   min-width: 0;
@@ -1055,18 +1056,19 @@ button:disabled {
   align-items: baseline;
   gap: 2px 6px;
   max-width: 100%;
-  padding: 6px 8px;
+  padding: 5px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff8ea;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 .dashboard-list li[data-status="done"] { background: #eff8f4; }
+.dashboard-list small { color: var(--muted); font-size: 11px; }
 .dashboard-status {
   color: var(--amber);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 .dashboard-list [data-status="done"] .dashboard-status { color: var(--green); }

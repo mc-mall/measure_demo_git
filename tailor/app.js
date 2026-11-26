@@ -1589,11 +1589,17 @@ function renderMeasurementDashboard(store = loadAdminStore() || {}) {
     ...row,
     department: String(row.employee.unit_name || "").trim(),
   }));
-  const departments = new Map(orderRows.map(({department}) => [`unit:${department}`, department]));
+  const departments = new Map();
+  for (const {department, measured} of orderRows) {
+    const key = `unit:${department}`;
+    if (!departments.has(key)) departments.set(key, {name: department, pending: 0});
+    if (!measured) departments.get(key).pending++;
+  }
   const department = departments.get(selectedDepartment);
-  dashboardDepartment.replaceChildren(new Option("全部部門", ""), ...Array.from(departments, ([value, name]) => new Option(name || "未分配部門", value)));
+  dashboardDepartment.replaceChildren(new Option("全部部門", ""), ...Array.from(departments, ([value, {name, pending}]) =>
+    new Option(`${name || "未分配部門"} · 待量體 ${pending} 人`, value)));
   dashboardDepartment.value = department === undefined ? "" : selectedDepartment;
-  const rows = department === undefined ? orderRows : orderRows.filter(row => row.department === department);
+  const rows = department === undefined ? orderRows : orderRows.filter(row => row.department === department.name);
   const done = rows.filter(row => row.measured).length;
   const counts = { all: rows.length, pending: rows.length - done, done };
   for (const button of dashboardStats.querySelectorAll("button")) {
@@ -1606,51 +1612,40 @@ function renderMeasurementDashboard(store = loadAdminStore() || {}) {
   document.getElementById("dashboard-progress").value = percent;
 
   const query = dashboardQuery.value.trim().toLowerCase();
-  const groups = new Map();
-  for (const row of rows) {
-    if (!groups.has(row.department)) groups.set(row.department, {pending: 0, visible: []});
-    const group = groups.get(row.department);
-    if (!row.measured) group.pending++;
-    if (dashboardFilter !== "all" && row.measured !== (dashboardFilter === "done")) continue;
-    if ([row.employee.employee_id, row.employee.name].some(value => String(value || "").toLowerCase().includes(query))) {
-      group.visible.push(row);
-    }
-  }
+  const visible = rows.filter(({employee, measured}) =>
+    (dashboardFilter === "all" || measured === (dashboardFilter === "done")) &&
+    [employee.employee_id, employee.name].some(value => String(value || "").toLowerCase().includes(query)));
   const orderId = dashboardOrder.value;
   const bookings = new Map();
   for (const {booking, slot} of upcomingAppointments(store, orderId, appointmentToday())) {
     const key = employeeKey(booking.order_id, booking.employee_id);
     if (!bookings.has(key)) bookings.set(key, slot);
   }
-  const pendingGroups = [];
-  let visibleCount = 0;
-  dashboardList.innerHTML = Array.from(groups, ([name, {pending, visible}]) => {
-    if (!visible.length) return "";
-    const departmentName = name || "未分配部門";
-    const pendingNames = [];
-    visibleCount += visible.length;
-    const people = visible.map(({employee, measured}) => {
-      const label = `${employee.employee_id} ${employee.name || "未填寫姓名"}`;
-      const orderLabel = orderId ? "" : `（${employee.order_id}）`;
+  const pendingByDepartment = new Map();
+  dashboardList.innerHTML = visible.map(({employee, measured, department}) => {
+    const name = employee.name || "未填寫姓名";
+    const departmentName = department || "未分配部門";
+    const orderLabel = orderId ? "" : `（${employee.order_id}）`;
+    const details = [employee.order_id, departmentName];
+    if (!measured) {
+      if (!pendingByDepartment.has(department)) pendingByDepartment.set(department, []);
+      pendingByDepartment.get(department).push(`${employee.employee_id} ${name}${orderLabel}`);
       const slot = bookings.get(employeeKey(employee.order_id, employee.employee_id));
-      if (!measured) pendingNames.push(`${label}${orderLabel}`);
-      const status = measured ? "已量體" : slot ? `已約 ${slot.date.slice(5)} ${slot.start_time}` : "未有後續預約";
-      return `<li data-status="${measured ? "done" : "pending"}">
-        <strong>${escapeHtml(label + orderLabel)}</strong>
-        <span class="dashboard-status">${escapeHtml(status)}</span>
-      </li>`;
-    }).join("");
-    if (pendingNames.length) pendingGroups.push(`${departmentName}（${pendingNames.length} 人）\n${pendingNames.join("；")}`);
-    return `<section class="overview-group">
-      <h4>${escapeHtml(departmentName)} <span>待量體 ${pending} 人</span></h4>
-      <ul class="dashboard-list">${people}</ul>
-    </section>`;
+      details.push(slot ? `已約 ${slot.date} ${slot.start_time}` : "未有後續預約");
+    }
+    return `<li data-status="${measured ? "done" : "pending"}" title="${escapeHtml(details.join(" · "))}">
+      <strong>${escapeHtml(name)}</strong>
+      <small>${escapeHtml(employee.employee_id + orderLabel)}</small>
+      <span class="dashboard-status">${measured ? "已量體" : "待量體"}</span>
+    </li>`;
   }).join("");
+  const pendingGroups = Array.from(pendingByDepartment, ([name, people]) =>
+    `${name || "未分配部門"}（${people.length} 人）\n${people.join("；")}`);
   pendingRosterText = pendingGroups.length ? [`${orderId || "全部訂單"} · 待量體名單`, ...pendingGroups].join("\n\n") : "";
   copyPendingRoster.hidden = !pendingRosterText;
   rosterCopyStatus.hidden = true;
-  document.getElementById("dashboard-list-count").textContent = `${visibleCount} 人`;
-  dashboardEmpty.hidden = visibleCount > 0;
+  document.getElementById("dashboard-list-count").textContent = `${visible.length} 人`;
+  dashboardEmpty.hidden = visible.length > 0;
   dashboardEmpty.textContent = rows.length ? "沒有符合篩選條件的員工。" : "所選範圍暫無員工。";
 }
 
