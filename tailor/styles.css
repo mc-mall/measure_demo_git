@@ -607,19 +607,6 @@ button:disabled {
   padding: 12px 18px 0;
 }
 .tailor-tools button { flex: 1; min-height: 44px; }
-#appointments-dialog { width: min(540px, calc(100% - 24px)); max-height: calc(100dvh - 32px); padding: 18px; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--page); overflow-y: auto; overscroll-behavior: contain; }
-#appointments-dialog::backdrop { background: rgb(23 33 47 / 48%); }
-.appointment-heading, .appointment-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.appointment-heading h2 { font-size: 20px; margin: 0; }
-.appointment-heading button { flex-shrink: 0; }
-.appointment-filters { margin: 16px 0; }
-.appointment-filters .field, .appointment-filters input, .appointment-filters select { min-width: 0; width: 100%; }
-.appointment-tools { justify-content: flex-start; }
-#appointment-counts { font-weight: 700; }
-.appointment-empty { padding: 24px 12px; color: var(--muted); text-align: center; line-height: 1.6; }
-@media (max-width: 360px) { .appointment-filters { grid-template-columns: 1fr; } }
-
-.appointment-names { margin: 10px 0 0; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; }
 
 /* Configured product measurement */
 #configured-products .measure-hint { margin: 8px 0 12px; font-weight: 400; }
@@ -932,18 +919,58 @@ button:disabled {
 .tailor-dialog h2 { font-size: 20px; }
 .tailor-dialog .archive-heading button { min-height: 44px; padding-inline: 12px; }
 .measurement-dashboard {
-  width: min(660px, calc(100% - 24px));
+  width: min(760px, calc(100% - 24px));
   padding: clamp(14px, 3vw, 24px);
   overscroll-behavior: contain;
 }
-.dashboard-note {
-  margin: 0 0 18px;
+.overview-note {
+  margin: 6px 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
-.dashboard-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.dashboard-filters .field, .dashboard-filters :is(input, select) { min-width: 0; }
+.overview-controls {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.overview-controls :is(.field, select), .overview-filters :is(.field, input, select) {
+  min-width: 0;
+  width: 100%;
+}
+.overview-views {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #eaf0f6;
+}
+.overview-views button {
+  min-height: 44px;
+  padding: 6px 8px;
+  background: transparent;
+  border-color: transparent;
+}
+.overview-views button[aria-pressed="true"] {
+  color: var(--blue-dark);
+  background: var(--panel);
+  border-color: #bacde1;
+  box-shadow: 0 1px 2px rgb(30 62 100 / 10%);
+}
+.overview-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.appointment-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, .75fr); }
+.appointment-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.appointment-tools button, .dashboard-list-heading button { min-height: 44px; padding: 6px 10px; font-size: 14px; }
+.appointment-counts { margin: 16px 0 4px; font-weight: 750; }
+#appointment-list { margin-top: 12px; }
 .dashboard-summary { margin: 16px 0 20px; }
 .dashboard-stats {
   display: grid;
@@ -987,7 +1014,33 @@ button:disabled {
 .dashboard-progress progress { width: 100%; height: 10px; accent-color: var(--green); }
 .dashboard-list-heading { margin-bottom: 8px; }
 .dashboard-list-heading h3 { margin: 0; font-size: 16px; }
-.dashboard-list-heading span { color: var(--muted); font-size: 13px; }
+.dashboard-list-heading span { color: var(--muted); font-size: 13px; font-weight: 400; }
+.overview-groups { display: grid; gap: 8px; }
+.overview-group {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.overview-group h4 {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 8px;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.overview-group h4 span {
+  color: var(--amber);
+  font-size: 14px;
+  font-weight: 700;
+}
+.appointment-group h4 { margin: 0; }
+.appointment-group h4 span { color: var(--blue-dark); }
+.appointment-names { margin: 8px 0 0; font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; }
 .dashboard-list {
   display: flex;
   flex-wrap: wrap;
@@ -1002,38 +1055,29 @@ button:disabled {
   align-items: baseline;
   gap: 2px 6px;
   max-width: 100%;
-  padding: 5px 8px;
+  padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff8ea;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 .dashboard-list li[data-status="done"] { background: #eff8f4; }
-.dashboard-list small { color: var(--muted); font-size: 11px; }
-.dashboard-status, .dashboard-status-icon {
+.dashboard-status {
   color: var(--amber);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
-.dashboard-status-icon { display: none; }
-.dashboard-list [data-status="done"] :is(.dashboard-status, .dashboard-status-icon) { color: var(--green); }
+.dashboard-list [data-status="done"] .dashboard-status { color: var(--green); }
 @media (max-width: 520px) {
-  .measurement-dashboard .archive-heading { margin-bottom: 6px; }
-  .dashboard-note { margin-bottom: 10px; font-size: 12px; }
-  .dashboard-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px 8px;
-  }
-  .dashboard-filters .field { gap: 4px; }
-  .dashboard-filters :is(input, select) { min-height: 40px; }
-  .dashboard-filters .field:last-child {
-    grid-column: 1 / -1;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    column-gap: 8px;
-  }
+  .measurement-dashboard .archive-heading { margin-bottom: 8px; }
+  .overview-controls { gap: 8px; margin-bottom: 12px; }
+  .overview-filters { gap: 6px 8px; }
+  .overview-filters .field { gap: 4px; }
+  .overview-filters :is(input, select) { min-height: 44px; }
+  .appointment-filters { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+  .appointment-filters .field:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .dashboard-summary {
     display: grid;
     grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
@@ -1047,7 +1091,7 @@ button:disabled {
     gap: 2px;
     padding: 3px 2px;
     border-radius: 7px;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.2;
     overflow-wrap: anywhere;
   }
@@ -1057,7 +1101,7 @@ button:disabled {
     gap: 1px;
     margin: 0;
     padding: 3px 5px;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.2;
   }
   .dashboard-progress > span {
@@ -1067,19 +1111,6 @@ button:disabled {
     gap: 2px;
   }
   .dashboard-progress progress { height: 5px; }
-}
-@media (max-width: 360px) {
-  .dashboard-filters select { padding-inline: 6px; }
-  .dashboard-list li { position: relative; column-gap: 4px; padding-inline: 5px; }
-  .dashboard-status {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    clip-path: inset(50%);
-    overflow: hidden;
-    white-space: nowrap;
-  }
-  .dashboard-status-icon { display: inline; }
 }
 .archive-error { margin: 0; color: var(--red); }
 .archive-history-entry + .archive-history-entry { margin-top: 8px; }

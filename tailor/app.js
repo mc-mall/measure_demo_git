@@ -1122,6 +1122,9 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
       dashboardFiltersAccount = username;
       temporaryDashboardFilters.clear();
       dashboardWorkspaceOrder = undefined;
+      appointmentDate.value = "";
+      appointmentSlot.value = "";
+      appointmentStatus.value = "all";
     }
     workspace.drafts.clear();
     workspace.query = "";
@@ -1514,15 +1517,25 @@ function escapeHtml(value) {
 }
 
 const measurementDashboard = document.getElementById("measurement-dashboard");
+const overviewViews = document.getElementById("overview-views");
+const progressPanel = document.getElementById("overview-progress");
+const appointmentPanel = document.getElementById("overview-appointments");
 const dashboardOrder = document.getElementById("dashboard-order");
 const dashboardDepartment = document.getElementById("dashboard-department");
 const dashboardQuery = document.getElementById("dashboard-query");
 const dashboardStats = document.getElementById("dashboard-stats");
 const dashboardList = document.getElementById("dashboard-list");
 const dashboardEmpty = document.getElementById("dashboard-empty");
+const copyPendingRoster = document.getElementById("copy-pending-roster");
+const rosterCopyStatus = document.getElementById("roster-copy-status");
+const appointmentDate = document.getElementById("appointment-date");
+const appointmentSlot = document.getElementById("appointment-slot");
+const appointmentStatus = document.getElementById("appointment-status");
+const nextAppointment = document.getElementById("appointments-next");
 const temporaryDashboardFilters = new Map();
 let dashboardFiltersAccount = "";
 let dashboardWorkspaceOrder;
+let pendingRosterText = "";
 
 function dashboardFiltersKey(orderId) {
   return `mc-tailor-dashboard-filters:${JSON.stringify([dashboardFiltersAccount, orderId])}`;
@@ -1549,14 +1562,28 @@ function saveDashboardFilters(status) {
   renderMeasurementDashboard();
 }
 
-function renderMeasurementDashboard(orderId = dashboardOrder.value) {
+function renderMeasurementOverview(orderId = dashboardOrder.value) {
   const store = loadAdminStore() || {};
-  const orders = store.orders || [];
-  dashboardOrder.innerHTML = '<option value="">全部訂單</option>' + orders.map(order =>
-    `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)}${order.company_name ? ` / ${escapeHtml(order.company_name)}` : ""}</option>`).join("");
-  dashboardOrder.value = orders.some(order => order.order_id === orderId) ? orderId : "";
+  const orders = (store.orders || []).map(order => new Option(
+    [order.order_id, order.company_name].filter(Boolean).join(" / "), order.order_id));
+  dashboardOrder.replaceChildren(new Option("全部訂單", ""), ...orders);
+  dashboardOrder.value = orders.some(option => option.value === orderId) ? orderId : "";
+  if (appointmentPanel.hidden) renderMeasurementDashboard(store);
+  else renderAppointments(store);
+}
+
+function showOverviewView(panelId) {
+  const showAppointments = panelId === appointmentPanel.id;
+  progressPanel.hidden = showAppointments;
+  appointmentPanel.hidden = !showAppointments;
+  for (const button of overviewViews.querySelectorAll("button")) {
+    button.setAttribute("aria-pressed", String(button.getAttribute("aria-controls") === panelId));
+  }
+}
+
+function renderMeasurementDashboard(store = loadAdminStore() || {}) {
   const savedFilters = readDashboardFilters(dashboardOrder.value);
-  const dashboardFilter = ["pending", "done"].includes(savedFilters?.status) ? savedFilters.status : "all";
+  const dashboardFilter = ["all", "done"].includes(savedFilters.status) ? savedFilters.status : "pending";
   const selectedDepartment = savedFilters?.department || "";
   const orderRows = measurementRows(store, dashboardOrder.value).map(row => ({
     ...row,
@@ -1579,20 +1606,51 @@ function renderMeasurementDashboard(orderId = dashboardOrder.value) {
   document.getElementById("dashboard-progress").value = percent;
 
   const query = dashboardQuery.value.trim().toLowerCase();
-  const visible = rows.filter(({employee, measured}) =>
-    (dashboardFilter === "all" || measured === (dashboardFilter === "done")) &&
-    [employee.employee_id, employee.name].some(value => String(value || "").toLowerCase().includes(query)));
-  document.getElementById("dashboard-list-count").textContent = `${visible.length} 人`;
-  dashboardList.innerHTML = visible.map(({employee, measured, department}) => {
-    const details = `${employee.order_id} · ${department || "未分配部門"}`;
-    return `<li data-status="${measured ? "done" : "pending"}" title="${escapeHtml(details)}">
-      <strong>${escapeHtml(employee.name || "未填寫姓名")}</strong>
-      <small>${escapeHtml(employee.employee_id)}</small>
-      <span class="dashboard-status">${measured ? "已量體" : "待量體"}</span>
-      <span class="dashboard-status-icon" aria-hidden="true">${measured ? "✓" : "○"}</span>
-    </li>`;
+  const groups = new Map();
+  for (const row of rows) {
+    if (!groups.has(row.department)) groups.set(row.department, {pending: 0, visible: []});
+    const group = groups.get(row.department);
+    if (!row.measured) group.pending++;
+    if (dashboardFilter !== "all" && row.measured !== (dashboardFilter === "done")) continue;
+    if ([row.employee.employee_id, row.employee.name].some(value => String(value || "").toLowerCase().includes(query))) {
+      group.visible.push(row);
+    }
+  }
+  const orderId = dashboardOrder.value;
+  const bookings = new Map();
+  for (const {booking, slot} of upcomingAppointments(store, orderId, appointmentToday())) {
+    const key = employeeKey(booking.order_id, booking.employee_id);
+    if (!bookings.has(key)) bookings.set(key, slot);
+  }
+  const pendingGroups = [];
+  let visibleCount = 0;
+  dashboardList.innerHTML = Array.from(groups, ([name, {pending, visible}]) => {
+    if (!visible.length) return "";
+    const departmentName = name || "未分配部門";
+    const pendingNames = [];
+    visibleCount += visible.length;
+    const people = visible.map(({employee, measured}) => {
+      const label = `${employee.employee_id} ${employee.name || "未填寫姓名"}`;
+      const orderLabel = orderId ? "" : `（${employee.order_id}）`;
+      const slot = bookings.get(employeeKey(employee.order_id, employee.employee_id));
+      if (!measured) pendingNames.push(`${label}${orderLabel}`);
+      const status = measured ? "已量體" : slot ? `已約 ${slot.date.slice(5)} ${slot.start_time}` : "未有後續預約";
+      return `<li data-status="${measured ? "done" : "pending"}">
+        <strong>${escapeHtml(label + orderLabel)}</strong>
+        <span class="dashboard-status">${escapeHtml(status)}</span>
+      </li>`;
+    }).join("");
+    if (pendingNames.length) pendingGroups.push(`${departmentName}（${pendingNames.length} 人）\n${pendingNames.join("；")}`);
+    return `<section class="overview-group">
+      <h4>${escapeHtml(departmentName)} <span>待量體 ${pending} 人</span></h4>
+      <ul class="dashboard-list">${people}</ul>
+    </section>`;
   }).join("");
-  dashboardEmpty.hidden = visible.length > 0;
+  pendingRosterText = pendingGroups.length ? [`${orderId || "全部訂單"} · 待量體名單`, ...pendingGroups].join("\n\n") : "";
+  copyPendingRoster.hidden = !pendingRosterText;
+  rosterCopyStatus.hidden = true;
+  document.getElementById("dashboard-list-count").textContent = `${visibleCount} 人`;
+  dashboardEmpty.hidden = visibleCount > 0;
   dashboardEmpty.textContent = rows.length ? "沒有符合篩選條件的員工。" : "所選範圍暫無員工。";
 }
 
@@ -1600,12 +1658,19 @@ document.getElementById("open-measurement-dashboard").addEventListener("click", 
   const orderId = dashboardWorkspaceOrder === orderSelect.value ? dashboardOrder.value : orderSelect.value;
   dashboardWorkspaceOrder = orderSelect.value;
   dashboardQuery.value = "";
-  renderMeasurementDashboard(orderId);
+  showOverviewView(progressPanel.id);
+  renderMeasurementOverview(orderId);
   measurementDashboard.showModal();
   measurementDashboard.scrollTop = 0;
 });
 document.getElementById("close-measurement-dashboard").addEventListener("click", () => measurementDashboard.close());
-dashboardOrder.addEventListener("change", () => renderMeasurementDashboard());
+dashboardOrder.addEventListener("change", () => renderMeasurementOverview());
+overviewViews.addEventListener("click", event => {
+  const button = event.target.closest("button");
+  if (!button) return;
+  showOverviewView(button.getAttribute("aria-controls"));
+  renderMeasurementOverview();
+});
 dashboardDepartment.addEventListener("change", () => saveDashboardFilters());
 dashboardQuery.addEventListener("input", () => renderMeasurementDashboard());
 dashboardStats.addEventListener("click", event => {
@@ -1613,17 +1678,43 @@ dashboardStats.addEventListener("click", event => {
   if (!button) return;
   saveDashboardFilters(button.dataset.filter);
 });
+copyPendingRoster.addEventListener("click", async () => {
+  if (!pendingRosterText) return;
+  try {
+    await navigator.clipboard.writeText(pendingRosterText);
+    rosterCopyStatus.textContent = "已複製待量體名單。";
+  } catch {
+    rosterCopyStatus.textContent = "無法使用剪貼簿，請選取名單文字後複製。";
+  }
+  rosterCopyStatus.hidden = false;
+});
 
-// Read-only appointment companion; never changes employee selection or form state.
 function appointmentTime(value) {
   const raw = String(value || "").trim().replace(" ", "T");
   return raw ? Date.parse(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw) ? raw : `${raw}+08:00`) : NaN;
 }
+
+function appointmentSlotKey(orderId, slotId) {
+  return JSON.stringify([orderId, slotId]);
+}
+
+function bookedAppointments(store, slots) {
+  const byId = new Map(slots.map(slot => [appointmentSlotKey(slot.order_id, slot.id), slot]));
+  return (store.appointments || []).flatMap(booking => {
+    const slot = byId.get(appointmentSlotKey(booking.order_id, booking.slot_id));
+    return booking.status === "booked" && slot ? [{booking, slot}] : [];
+  });
+}
+
+function upcomingAppointments(store, orderId, today) {
+  const slots = (store.appointmentSlots || []).filter(slot => slot.date >= today && (!orderId || slot.order_id === orderId));
+  return bookedAppointments(store, slots).sort((a, b) =>
+    `${a.slot.date}T${a.slot.start_time}`.localeCompare(`${b.slot.date}T${b.slot.start_time}`));
+}
+
 function appointmentRows(store, date, orderId) {
   const slots = (store.appointmentSlots || []).filter(slot => slot.date === date && (!orderId || slot.order_id === orderId));
-  return (store.appointments || []).filter(booking => booking.status === "booked").flatMap(booking => {
-    const slot = slots.find(item => item.id === booking.slot_id && item.order_id === booking.order_id);
-    if (!slot) return [];
+  return bookedAppointments(store, slots).map(({booking, slot}) => {
     const employee = (store.employees || []).find(item => item.employee_id === booking.employee_id && item.order_id === booking.order_id);
     const start = appointmentTime(`${slot.date}T00:00:00`);
     const bookedAt = appointmentTime(booking.created_at);
@@ -1631,52 +1722,71 @@ function appointmentRows(store, date, orderId) {
       const at = appointmentTime(item.measured_at || item.measurement_date || item.measure_date);
       return item.employee?.employee_id === booking.employee_id && item.employee?.order_id === booking.order_id && at >= start && at < start + 86400000 && Number.isFinite(bookedAt) && at >= bookedAt;
     }).sort((a, b) => appointmentTime(b.measured_at || b.measurement_date || b.measure_date) - appointmentTime(a.measured_at || a.measurement_date || a.measure_date))[0];
-    return [{booking, slot, employee, measurement}];
+    return {booking, slot, employee, measurement};
   }).sort((a, b) => `${a.slot.start_time}${a.booking.created_at}`.localeCompare(`${b.slot.start_time}${b.booking.created_at}`));
 }
-const appointmentsDialog = document.getElementById("appointments-dialog");
-const appointmentDate = document.getElementById("appointment-date");
-const appointmentOrder = document.getElementById("appointment-order");
-const appointmentSlot = document.getElementById("appointment-slot");
-const appointmentStatus = document.getElementById("appointment-status");
+
 function appointmentToday() {
   return beijingNowWithSeconds().slice(0, 10);
 }
-function renderAppointments() {
-  const store = loadAdminStore() || {};
-  const selectedOrder = appointmentOrder.value;
-  const orders = store.orders || [];
-  appointmentOrder.innerHTML = '<option value="">全部訂單</option>' + orders.map(order => `<option value="${escapeHtml(order.order_id)}">${escapeHtml(order.order_id)} / ${escapeHtml(order.company_name)}</option>`).join("");
-  appointmentOrder.value = orders.some(order => order.order_id === selectedOrder) ? selectedOrder : "";
-  const slots = (store.appointmentSlots || []).filter(slot => slot.date === appointmentDate.value && (!appointmentOrder.value || slot.order_id === appointmentOrder.value)).sort((a,b) => a.start_time.localeCompare(b.start_time));
+
+function renderAppointments(store = loadAdminStore() || {}) {
+  const today = appointmentToday();
+  const orderId = dashboardOrder.value;
+  if (!appointmentDate.value) appointmentDate.value = today;
+  const date = appointmentDate.value;
+  const slots = (store.appointmentSlots || [])
+    .filter(slot => slot.date === date && (!orderId || slot.order_id === orderId))
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
   const selectedSlot = appointmentSlot.value;
-  appointmentSlot.innerHTML = '<option value="">全天 · 全部時段</option>' + slots.map(slot => `<option value="${escapeHtml(slot.id)}">${escapeHtml(slot.start_time)}–${escapeHtml(slot.end_time)} / ${escapeHtml(slot.address)} / ${escapeHtml(slot.order_id)}</option>`).join("");
-  appointmentSlot.value = slots.some(slot => slot.id === selectedSlot) ? selectedSlot : "";
-  const rows = appointmentRows(store, appointmentDate.value, appointmentOrder.value).filter(row => !appointmentSlot.value || row.slot.id === appointmentSlot.value);
-  const done = rows.filter(row => row.measurement).length;
-  document.getElementById("appointment-counts").textContent = `預約 ${rows.length} 人次 · 待量身 ${rows.length - done} · 已量身 ${done}`;
-  const visible = rows.filter(row => appointmentStatus.value === "all" || Boolean(row.measurement) === (appointmentStatus.value === "done"));
-  document.getElementById("appointment-list").innerHTML = visible.length
-    ? `<p class="appointment-names">${visible.map(({booking, employee}) => `${escapeHtml(booking.employee_id)} ${escapeHtml(employee?.name || booking.employee_name || "未填寫姓名")}`).join("；")}</p>`
-    : '<p class="appointment-empty">目前條件下沒有預約人員，可切換日期、訂單或狀態查看。</p>';
+  const slotOptions = slots.map(slot => new Option(
+    `${slot.start_time}–${slot.end_time} / ${slot.address}${orderId ? "" : ` / ${slot.order_id}`}`,
+    appointmentSlotKey(slot.order_id, slot.id)));
+  appointmentSlot.replaceChildren(new Option("全天 · 全部時段", ""), ...slotOptions);
+  appointmentSlot.value = slotOptions.some(option => option.value === selectedSlot) ? selectedSlot : "";
+  const scopedSlots = slots.filter(slot => !appointmentSlot.value || appointmentSlotKey(slot.order_id, slot.id) === appointmentSlot.value);
+  const grouped = new Map(scopedSlots.map(slot => [slot, []]));
+  let total = 0;
+  let done = 0;
+  for (const row of appointmentRows(store, date, orderId)) {
+    if (!grouped.has(row.slot)) continue;
+    grouped.get(row.slot).push(row);
+    total++;
+    if (row.measurement) done++;
+  }
+  const nextDate = upcomingAppointments(store, orderId, today).find(({slot}) => slot.date > date)?.slot.date;
+  nextAppointment.hidden = !nextDate;
+  nextAppointment.dataset.date = nextDate || "";
+  nextAppointment.textContent = nextDate ? `下一個預約日 ${nextDate.slice(5)}` : "";
+  document.getElementById("appointment-counts").textContent = `預約 ${total} 人次 · 待量體 ${total - done} · 已量體 ${done}`;
+  document.getElementById("appointment-list").innerHTML = scopedSlots.map(slot => {
+    const rows = grouped.get(slot);
+    const pending = rows.filter(row => !row.measurement).length;
+    const visible = rows.filter(row => appointmentStatus.value === "all" || Boolean(row.measurement) === (appointmentStatus.value === "done"));
+    const people = visible.map(({booking, employee}) => `${escapeHtml(booking.employee_id)} ${escapeHtml(employee?.name || booking.employee_name || "未填寫姓名")}`).join("；");
+    return `<section class="overview-group appointment-group">
+      <h4>${escapeHtml(slot.start_time)}–${escapeHtml(slot.end_time)} <span>預約 ${rows.length} 人次 · 待量體 ${pending} · 已量體 ${rows.length - pending}</span></h4>
+      <p class="overview-note">${escapeHtml(slot.address)}${orderId ? "" : ` · ${escapeHtml(slot.order_id)}`}${slot.status === "disabled" ? " · 已暫停" : ""}</p>
+      ${people ? `<p class="appointment-names">${people}</p>` : '<p class="overview-note">目前條件下沒有預約人員。</p>'}
+    </section>`;
+  }).join("") || '<p class="roster-empty">所選日期暫無預約時段。</p>';
 }
-document.getElementById("open-appointments").addEventListener("click", () => {
-  if (!appointmentDate.value) appointmentDate.value = appointmentToday();
-  renderAppointments();
-  appointmentsDialog.showModal();
-});
-document.getElementById("close-appointments").addEventListener("click", () => appointmentsDialog.close());
-[appointmentDate, appointmentOrder, appointmentSlot, appointmentStatus].forEach(control => control.addEventListener("change", renderAppointments));
-document.getElementById("appointments-refresh").addEventListener("click", renderAppointments);
-document.getElementById("appointments-today").addEventListener("click", () => {
-  appointmentDate.value = appointmentToday();
+
+function setAppointmentDate(date) {
+  appointmentDate.value = date;
   appointmentSlot.value = "";
   renderAppointments();
-});
+}
+
+for (const control of [appointmentDate, appointmentSlot, appointmentStatus]) {
+  control.addEventListener("change", () => renderAppointments());
+}
+document.getElementById("appointments-refresh").addEventListener("click", () => renderMeasurementOverview());
+document.getElementById("appointments-today").addEventListener("click", () => setAppointmentDate(appointmentToday()));
+nextAppointment.addEventListener("click", () => setAppointmentDate(nextAppointment.dataset.date));
 window.addEventListener("storage", event => {
   if (event.key === adminStoreKey || event.key === null) {
-    if (measurementDashboard.open) renderMeasurementDashboard();
-    if (appointmentsDialog.open) renderAppointments();
+    if (measurementDashboard.open) renderMeasurementOverview();
     if (!archivePicker.hidden) renderArchivePicker();
   }
   if (!isWorkspace()) return;
@@ -1688,6 +1798,5 @@ window.addEventListener("storage", event => {
   }
 });
 window.addEventListener("focus", () => {
-  if (measurementDashboard.open) renderMeasurementDashboard();
-  if (appointmentsDialog.open) renderAppointments();
+  if (measurementDashboard.open) renderMeasurementOverview();
 });

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>MC 量體資料收集</title>
-    <link rel="stylesheet" href="./styles.css?v=20261106-dashboard-compact" />
+    <link rel="stylesheet" href="./styles.css?v=20261126-measurement-overview" />
   </head>
   <body>
     <main class="app-shell">
@@ -21,7 +21,6 @@
 
       <div class="tailor-tools" id="tailor-tools" hidden>
         <button type="button" class="secondary-action" id="open-measurement-dashboard">量體總覽</button>
-        <button type="button" class="secondary-action" id="open-appointments">預約明細</button>
       </div>
 
       <ol class="stepper" id="stepper" aria-label="量體步驟">
@@ -309,49 +308,58 @@
           <h2 id="measurement-dashboard-title">量體總覽</h2>
           <button type="button" class="secondary-action" id="close-measurement-dashboard">關閉</button>
         </div>
-        <p class="dashboard-note">按訂單及部門統計，已有有效量體檔案即計為已量體。</p>
-        <div class="field-grid dashboard-filters">
+        <div class="overview-controls">
           <label class="field"><span>訂單 / 項目</span><select id="dashboard-order"></select></label>
-          <label class="field"><span>部門</span><select id="dashboard-department"></select></label>
-          <label class="field"><span>搜尋員工</span><input id="dashboard-query" type="search" placeholder="輸入員工編號或姓名" /></label>
-        </div>
-        <div class="dashboard-summary">
-          <div id="dashboard-stats" class="dashboard-stats" role="group" aria-label="按量體狀態篩選">
-            <button type="button" data-filter="all" aria-pressed="true"><span>總人數</span><strong>0</strong></button>
-            <button type="button" data-filter="pending" aria-pressed="false"><span>待量體</span><strong>0</strong></button>
-            <button type="button" data-filter="done" aria-pressed="false"><span>已量體</span><strong>0</strong></button>
-          </div>
-          <div class="dashboard-progress">
-            <span><span>完成率</span><strong id="dashboard-percent">0%</strong></span>
-            <progress id="dashboard-progress" max="100" value="0" aria-label="量體完成率"></progress>
+          <div id="overview-views" class="overview-views" role="group" aria-label="量體總覽檢視">
+            <button type="button" class="secondary-action" aria-controls="overview-progress" aria-pressed="true">部門跟進</button>
+            <button type="button" class="secondary-action" aria-controls="overview-appointments" aria-pressed="false">預約明細</button>
           </div>
         </div>
-        <div class="dashboard-list-heading">
-          <h3>員工名單</h3>
-          <span id="dashboard-list-count" role="status"></span>
-        </div>
-        <ul id="dashboard-list" class="dashboard-list" aria-label="量體狀態名單"></ul>
-        <p id="dashboard-empty" class="roster-empty" hidden></p>
-      </dialog>
-      <dialog id="appointments-dialog" aria-labelledby="appointments-title">
-        <div class="appointment-heading"><h2 id="appointments-title">預約明細</h2><button type="button" class="secondary-action" id="close-appointments">返回量身</button></div>
-        <p class="measure-hint">查看名單不會改動正在填寫的量體資料。已取消預約不計入。</p>
-        <div class="field-grid appointment-filters">
-          <label class="field"><span>預約日期</span><input type="date" id="appointment-date" /></label>
-          <label class="field"><span>訂單 / 項目</span><select id="appointment-order"></select></label>
-          <label class="field"><span>時段 / 地址</span><select id="appointment-slot"></select></label>
-          <label class="field"><span>量身狀態</span><select id="appointment-status"><option value="all">全部</option><option value="pending">待量身</option><option value="done">已量身</option></select></label>
-        </div>
-        <div class="appointment-tools"><button type="button" class="secondary-action" id="appointments-today">今天</button><button type="button" class="secondary-action" id="appointments-refresh">刷新名單</button></div>
-        <p id="appointment-counts" role="status"></p>
-        <p class="measure-hint">已量身：同一訂單及員工於預約當天、登記預約後已有提交記錄；可早於或晚於預約時段。</p>
-        <div id="appointment-list"></div>
+        <section id="overview-progress" aria-label="部門跟進">
+          <div class="field-grid overview-filters">
+            <label class="field"><span>部門</span><select id="dashboard-department"></select></label>
+            <label class="field"><span>搜尋員工</span><input id="dashboard-query" type="search" placeholder="編號或姓名" /></label>
+          </div>
+          <div class="dashboard-summary">
+            <div id="dashboard-stats" class="dashboard-stats" role="group" aria-label="按量體狀態篩選">
+              <button type="button" data-filter="all" aria-pressed="false"><span>總人數</span><strong>0</strong></button>
+              <button type="button" data-filter="pending" aria-pressed="true"><span>待量體</span><strong>0</strong></button>
+              <button type="button" data-filter="done" aria-pressed="false"><span>已量體</span><strong>0</strong></button>
+            </div>
+            <div class="dashboard-progress">
+              <span><span>完成率</span><strong id="dashboard-percent">0%</strong></span>
+              <progress id="dashboard-progress" max="100" value="0" aria-label="量體完成率"></progress>
+            </div>
+          </div>
+          <div class="dashboard-list-heading">
+            <h3>員工名單 <span id="dashboard-list-count" role="status"></span></h3>
+            <button type="button" class="secondary-action" id="copy-pending-roster" hidden>複製待量體名單</button>
+          </div>
+          <p id="roster-copy-status" class="overview-note" role="status" hidden></p>
+          <div id="dashboard-list" class="overview-groups"></div>
+          <p id="dashboard-empty" class="roster-empty" hidden></p>
+        </section>
+        <section id="overview-appointments" aria-label="預約明細" hidden>
+          <div class="field-grid overview-filters appointment-filters">
+            <label class="field"><span>預約日期</span><input type="date" id="appointment-date" /></label>
+            <label class="field"><span>時段 / 地點</span><select id="appointment-slot"></select></label>
+            <label class="field"><span>量體狀態</span><select id="appointment-status"><option value="all">全部</option><option value="pending">待量體</option><option value="done">已量體</option></select></label>
+          </div>
+          <div class="appointment-tools">
+            <button type="button" class="secondary-action" id="appointments-today">今天</button>
+            <button type="button" class="secondary-action" id="appointments-next" hidden></button>
+            <button type="button" class="secondary-action" id="appointments-refresh">刷新名單</button>
+          </div>
+          <p id="appointment-counts" class="appointment-counts" role="status"></p>
+          <p class="overview-note">同一員工在預約當天及登記後提交量體記錄，才計為此預約已量體。</p>
+          <div id="appointment-list" class="overview-groups"></div>
+        </section>
       </dialog>
       <div class="toast" id="toast" role="status" hidden></div>
     </main>
 
     <script src="../shared/workflow.js?v=20260916-appointment-names"></script>
     <script src="./products.js?v=20261106-employee-archives"></script>
-    <script src="./app.js?v=20261106-dashboard-compact"></script>
+    <script src="./app.js?v=20261126-measurement-overview"></script>
   </body>
 </html>
